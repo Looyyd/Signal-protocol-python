@@ -1,4 +1,5 @@
 import numpy as np
+import binascii
 
 rate =  576
 byte_rate=rate//8
@@ -48,6 +49,81 @@ def array_1Dto3D(state: bytearray):
     return state3D
 
 
+def theta(state3D):
+    out_state3D= np.zeros((5,5,w))
+    for i in range(0, 5):
+        for j in range(0, 5):
+            for k in range(0, w):
+                bit = state3D[i][j][k]
+                parity1 = sum(state3D[:,(j-1)%5,k])%2
+                parity2 = sum(state3D[:,(j+1)%5,k])%2
+                out_state3D[i][j][k]= (bit + parity1 + parity2) %2
+
+    return out_state3D
+
+def pi(state3D):
+    out_state3D= np.zeros((5,5,w))
+    for i in range(0, 5):
+        for j in range(0, 5):
+            out_state3D[(3*i + 2*j)%5,i,:] = state3D[i,j,:]
+
+    return out_state3D
+
+def chi(state3D):
+    out_state3D= np.zeros((5,5,w))
+    for i in range(0, 5):
+        for j in range(0, 5):
+            for k in range(0, w):
+                x = int(state3D[i,j,k])
+                not_y = int((state3D[i,(j+2)%5,k]+1)%2)
+                z = int(state3D[i,(j+2)%5,k])
+                out_state3D[i,j,k] = x ^(not_y & z)
+    return out_state3D
+
+# TODO , dtype = int) dans les array numpy, vour meme char
+
+def rho(state3D):
+    # TODO : could precalculate i and j
+    out_state3D = np.zeros((5,5,64))
+    # method taken from https://math.stackexchange.com/a/366274
+    i = 0
+    j = 1
+    for t in range(0,24):
+        for k in range(0,64):
+            out_state3D[i][j][k] = state3D[i][j][(k-((t+1)*(t+2))//2)%64]
+        i_prev = i
+        j_prev = j
+        i= (3*i_prev + 2*j_prev)%5
+        j=i_prev
+    return out_state3D
+
+# linear shift register
+def rc(t):
+    if t%255 == 0:
+        return 1
+    else:
+        R=[1,0,0,0,0,0,0,0]
+        for i in range(0,t%255):
+            R.insert(0,0)
+            R[0]=(R[0]+R[8]) % 2
+            R[4]=(R[4]+R[8]) % 2
+            R[5]=(R[5]+R[8]) % 2
+            R[6]=(R[6]+R[8]) % 2
+            R= R[0:8]
+        return R[0]
+
+
+def iota(state3D, n_round):
+    out_state3D = np.array(state3D)
+    RC=np.zeros(w)
+    for j in range(0, l):
+        RC[2**j -1]=rc(j+7*n_round)
+    for z in range(0,w):
+        out_state3D[0][0][z]=(state3D[0][0][z] + RC[z]) %2
+    return out_state3D
+
+
+
 def array_3Dto1D(state3D):
     state = bytearray()
     bit_counter = 0
@@ -56,12 +132,10 @@ def array_3Dto1D(state3D):
         for j in range(0,5):
             for k in range(0,w):
                 #we add the bit to the current byte
-                print("bit : ",int(state3D[i][j][k]) << 7-bit_counter)
                 byte = byte + (int(state3D[i][j][k]) << 7-bit_counter)
                 bit_counter+=1
                 if (bit_counter == 8):
                     bit_counter=0
-                    print(byte)
                     state.extend(bytes([byte]))
                     byte=0
     return state
@@ -77,11 +151,11 @@ def xor_state(state : bytearray, p : bytearray):
     return state
 
 def _f(state : bytearray):
-#    state3D = _1Dto3D(state)
-#    for r in range(n_rounds):
-#            state3D = iota(chi(pi(rho(theta(state3D)))), r)
-#    state = _3Dto1D(state3D)
-#    state = bytearray(state)
+    state3D = array_1Dto3D(state)
+    for r in range(n_rounds):
+            state3D = iota(chi(pi(rho(theta(state3D)))), r)
+    state = array_3Dto1D(state3D)
+    state = bytearray(state)
     return state
 
 def Sha3_512(input: bytearray):
@@ -92,7 +166,6 @@ def Sha3_512(input: bytearray):
     n = len(input)// byte_rate
     #initialize the state S to a string of b zero bits
     state = bytearray(byte_rate+byte_capacity)
-    print("State len:", len(state))
 
     for i in range(0,n):
         #absorb the input into the state: for each block Pi
@@ -116,20 +189,21 @@ def Sha3_512(input: bytearray):
     return z
 
 if __name__ == "__main__":
-    #input = "1"
-    #input_bytes = bytearray()
-    #input_bytes.extend(map(ord, input))
-    #print(input_bytes)
-    #hash = Sha3_512(input_bytes)
-    #print('hash : ',hash)
-
-    test_state='A'*(1600//8)
+    input = "4"
     input_bytes = bytearray()
-    input_bytes.extend(map(ord, test_state))
-    state3D= array_1Dto3D(input_bytes)
-    print(state3D)
-    state = array_3Dto1D(state3D)
-    print(state)
+    input_bytes.extend(map(ord, input))
+    print(input_bytes)
+    hash = Sha3_512(input_bytes)
+    print('hash : ', binascii.hexlify(hash))
 
+#    test_state='A'*(1600//8)
+#    input_bytes = bytearray()
+#    input_bytes.extend(map(ord, test_state))
+#    state3D= array_1Dto3D(input_bytes)
+#    state3D = theta(state3D)
+#    state3D = pi(state3D)
+#    state3D = chi(state3D)
+#    state3D = rho(state3D)
+#    state3D = iota(state3D, 0)
 
 
