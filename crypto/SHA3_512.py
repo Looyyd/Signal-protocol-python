@@ -88,6 +88,8 @@ def rho(state3D):
     # method taken from https://math.stackexchange.com/a/366274
     i = 0
     j = 1
+    for k in range(0,64):
+        out_state3D[0][0][k] = state3D[0][0][k]
     for t in range(0,24):
         for k in range(0,64):
             out_state3D[i][j][k] = state3D[i][j][(k-((t+1)*(t+2))//2)%64]
@@ -189,7 +191,7 @@ def Sha3_512(input: bytearray):
     return z
 
 if __name__ == "__main__":
-    input = "4"
+    input = "1"
     input_bytes = bytearray()
     input_bytes.extend(map(ord, input))
     print(input_bytes)
