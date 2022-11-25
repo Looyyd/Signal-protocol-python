@@ -161,8 +161,13 @@ def _f(state : bytearray):
     return state
 
 def Sha3_512(input: bytearray):
+    # appending a two-bit suffix to M
+    # TODO pas sur que ca soit ca qu'il faut ajouter
+    input.extend(b'\x06')
     #Padding
     input = pad(input)
+    print("Data to be absorbed")
+    print(input)
     #Absorbing
     #break input into n consecutive r-bit pieces P0, ..., Pn−1
     n = len(input)// byte_rate
@@ -191,7 +196,7 @@ def Sha3_512(input: bytearray):
     return z
 
 if __name__ == "__main__":
-    input = "1"
+    input = ""
     input_bytes = bytearray()
     input_bytes.extend(map(ord, input))
     print(input_bytes)
