@@ -1,0 +1,29 @@
+from secrets import randbits
+
+
+# g and p taken from https://www.ietf.org/rfc/rfc3526.txt
+# generator is 2
+g=2
+# prime is 2^2048 - 2^1984 - 1 + 2^64 * { [2^1918 pi] + 124476 }
+p = 0xFFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD129024E088A67CC74020BBEA63B139B22514A08798E3404DDEF9519B3CD3A431B302B0A6DF25F14374FE1356D6D51C245E485B576625E7EC6F44C42E9A637ED6B0BFF5CB6F406B7EDEE386BFB5A899FA5AE9F24117C4B1FE649286651ECE45B3DC2007CB8A163BF0598DA48361C55D39A69163FA8FD24CF5F83655D23DCA3AD961C62F356208552BB9ED529077096966D670C354E4ABC9804F1746C08CA18217C32905E462E36CE3BE39E772C180E86039B2783A2EC07A28FB5C55DF06F4C52C9DE2BCBF6955817183995497CEA956AE515D2261898FA051015728E5A8AACAA68FFFFFFFFFFFFFFFF
+
+
+# calculate 1 step of diffie hellman key exchange and returns value
+def dh_step1(private_key: int):
+    value = pow(g, private_key, p)
+    return value
+
+# calculate step 2 of DH and returns secret key
+def dh_step2(public_key: int, private_key: int):
+    value = pow(public_key, private_key, p)
+    return value
+
+if __name__ == "__main__":
+    exit()
+    #a = randbits(2048)
+        #b = randbits(2048)
+        #A = dh_step1(a)
+        #B = dh_step1(b)
+        #key1 = dh_step2(A,b)
+        #key2 = dh_step2(B,a)
+        #print(key1==key2)
