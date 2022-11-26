@@ -20,10 +20,3 @@ def dh_step2(public_key: int, private_key: int):
 
 if __name__ == "__main__":
     exit()
-    #a = randbits(2048)
-        #b = randbits(2048)
-        #A = dh_step1(a)
-        #B = dh_step1(b)
-        #key1 = dh_step2(A,b)
-        #key2 = dh_step2(B,a)
-        #print(key1==key2)
