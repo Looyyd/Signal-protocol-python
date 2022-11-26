@@ -1,9 +1,10 @@
-
+import numpy as np
 
 keysize= 256
 bloc_size = 128
 n_rounds = 14
 N = 8
+R = 15
 
 # taken from https://gist.github.com/bonsaiviking/5571001
 Sbox = (
@@ -47,15 +48,60 @@ Rcon = (0x8d, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36, 0x6c, 
 
 
 def shift_rows(state):
-    return state
+    out_state = np.zeros((4, 4), dtype=int)
+    # state is 4 by 4 array of bytes
+    # iterate rows
+    for i in range(4):
+        #iterate columns
+        for j in range(4):
+            out_state[i][j]= state[i][(j-i)%4]
+    return out_state
 
 
-def mix_columns(state):
-    return state
+def multiply_by_2(v):
+    s = v << 1
+    s &= 0xff
+    if (v & 128) != 0:
+        s = s ^ 0x1b
+    return s
+
+
+def multiply_by_3(v):
+    return multiply_by_2(v) ^ v
+
+
+def mix_columns(grid):
+    new_grid = [[], [], [], []]
+    for i in range(4):
+        col = [grid[j][i] for j in range(4)]
+        col = mix_column(col)
+        for i in range(4):
+            new_grid[i].append(col[i])
+    return new_grid
+
+
+def mix_column(column):
+    r = [
+        multiply_by_2(column[0]) ^ multiply_by_3(
+            column[1]) ^ column[2] ^ column[3],
+        multiply_by_2(column[1]) ^ multiply_by_3(
+            column[2]) ^ column[3] ^ column[0],
+        multiply_by_2(column[2]) ^ multiply_by_3(
+            column[3]) ^ column[0] ^ column[1],
+        multiply_by_2(column[3]) ^ multiply_by_3(
+            column[0]) ^ column[1] ^ column[2],
+    ]
+    return r
 
 
 def sub_bytes(state):
-    return state
+    out_state = np.zeros((4, 4), dtype=int)
+    # state is 4 by 4 array of bytes
+    for i in range(4):
+        for j in range(4):
+            out_state[i][j]= Sbox[state[i][j]]
+    return out_state
+
 
 def rot_word(word):
     word_out = []
@@ -87,26 +133,40 @@ def key_to_words(cipherKey):
 
 def key_expansion(cipherKey):
     cipherKey=key_to_words(cipherKey)
-    print(cipherKey)
     expandedKey = []
-    for i in range(0, 4*N - 1):
-        print(i)
+    for i in range(0, 4*R):
         if(i<N):
             expandedKey.append(cipherKey[i])
         elif(i>=N) and (i%N == 0):
-            expandedKey.append( xor(xor(expandedKey[i-N], sub_word(sub_bytes(expandedKey[i-1]))),[Rcon[i//N], 0, 0, 0]))
+            expandedKey.append( xor(xor(expandedKey[i-N], sub_word(rot_word(expandedKey[i-1]))),[Rcon[i//N], 0, 0, 0]))
             #expandedKey.append( expandedKey[i-N] ^ sub_word(rot_word(expandedKey[i-1])) ^bytes([Rcon[i], 0, 0, 0]))
         elif(i>=N) and (N>6) and (i%N == 4):
             expandedKey.append( xor(expandedKey[i-N],sub_word(expandedKey[i-1])))
         else:
             expandedKey.append(xor(expandedKey[i-N],expandedKey[i-1]))
-    return expandedKey
+
+    #return expanded keys in array of 4*4 arrays
+    linear_keys=[]
+    for key in expandedKey:
+        linear_keys.extend(key)
+    keys = np.zeros((R,4,4), dtype=int)
+    #TODO not sure about indexing
+    for i in range(R):
+        for j in range(4):
+            for k in range(4):
+                keys[i][j][k]=linear_keys[k+j*4+i*4*4]
+    return keys
 
 
 
 
 
 def add_round_key(state,expandedKey):
+    # both are 4*4 matrices of bytes
+    out_state = np.zeros((4,4), dtype=int)
+    for i in range(0,4):
+        for j in range(0,4):
+            out_state[i][j]= state[i][j] ^ expandedKey[i][j]
     return state
 
 
@@ -127,6 +187,8 @@ def aes_final_round(state,expandedKey):
 
 def rijndael(state, cipherKey):
     keys = key_expansion(cipherKey)
+
+    # let state be a 4*4 array of bytes
     state = add_round_key(state, keys[0])
 
     for i in range(1, n_rounds - 1):
@@ -134,15 +196,32 @@ def rijndael(state, cipherKey):
     # Pas sur si n_rounds -1 ou n_rounds
     state = aes_final_round(state, keys[n_rounds-1])
 
-    return state
+    #linearalize state
+    lin_state = bytes(state)
+    return lin_state
 
+def aes(bloc, key):
+    # transform plaintext into state
+    state = np.zeros((4,4), dtype=int)
+    for i in range(4):
+        for j in range(4):
+            state[i][j]= bloc[i+4*j]
+    return rijndael(state, key)
 
 
 if __name__ == "__main__":
-    # from nist test key https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.197.pdf
-    key=bytes.fromhex("603deb1015ca71be2b73aef0857d77811f352c073b6108d72d9810a30914dff4")
-    print(key)
-    expanded = key_expansion(key)
-    # result is correct
-    for w in expanded:
-        print(w.hex())
+#    # from nist test key https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.197.pdf
+#    key=bytes.fromhex("603deb1015ca71be2b73aef0857d77811f352c073b6108d72d9810a30914dff4")
+#    print(key)
+#    expanded = key_expansion(key)
+#    for w in expanded:
+#        #TODO actually it seems wrong: excpected a8b09c1a gotten a8b0ed1a , and same difference for all generated?
+#       print(w.hex())
+
+    # test encryption
+    plaintext = bytes.fromhex("00112233445566778899aabbccddeeff")
+    key = bytes.fromhex("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
+
+    ct = aes(plaintext, key)
+    print(ct)
+    print(len(ct))
