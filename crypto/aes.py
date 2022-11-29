@@ -107,7 +107,7 @@ def rot_word(word):
     word_out = []
     word_out.append(word[1])
     word_out.append(word[2])
-    word_out.append(word[2])
+    word_out.append(word[3])
     word_out.append(word[0])
     return word_out
 
@@ -138,7 +138,16 @@ def key_expansion(cipherKey):
         if(i<N):
             expandedKey.append(cipherKey[i])
         elif(i>=N) and (i%N == 0):
-            expandedKey.append( xor(xor(expandedKey[i-N], sub_word(rot_word(expandedKey[i-1]))),[Rcon[i//N], 0, 0, 0]))
+            rotted = rot_word(expandedKey[i-1])
+            subbed =  sub_word(rotted)
+            rcon = [Rcon[i//N], 0, 0, 0]
+            xorWrcon = xor(subbed, rcon)
+            keyiminusN = expandedKey[i-N]
+            result = xor(keyiminusN,xorWrcon)
+            expandedKey.append(result)
+            #for debugging
+            #print("i:", i, "After rot:", "".join([f'{byte:02x}' for byte in rotted]) , " after sub : ", subbed, "rcon : ", rcon)
+            #expandedKey.append( xor(xor(expandedKey[i-N], sub_word(rot_word(expandedKey[i-1]))),[Rcon[i//N], 0, 0, 0]))
             #expandedKey.append( expandedKey[i-N] ^ sub_word(rot_word(expandedKey[i-1])) ^bytes([Rcon[i], 0, 0, 0]))
         elif(i>=N) and (N>6) and (i%N == 4):
             expandedKey.append( xor(expandedKey[i-N],sub_word(expandedKey[i-1])))
@@ -208,20 +217,47 @@ def aes(bloc, key):
             state[i][j]= bloc[i+4*j]
     return rijndael(state, key)
 
+def debug_expansion():
+    key = bytes.fromhex("603deb1015ca71be2b73aef0857d77811f352c073b6108d72d9810a30914dff4")
+    print(key)
+    expanded = key_expansion(key)
+    # print(expanded)
+    # print the expanded keys to compare with test vector
+    expected = [
+        "9ba35411",
+        "8e6925af",
+        "a51a8b5f",
+        "2067fcde",
+        "a8b09c1a",
+        "93d194cd",
+        "be49846e",
+        "b75d5b9a",
+        "d59aecb8",
+        "5bf3c917",
+        "fee94248",
+        "de8ebe96",
+        "b5a9328a",
+        "2678a647",
+        "98312229",
+    ]
+    counter = 0
+    for i in expanded:
+        for j in i:
+            for k in j:
+                print(f'{k:02x}', end='')
+            if (counter >= 8) and counter < 16:
+                print(" expected : ", expected[counter - 8])
+            counter += 1
+            print("")
 
 if __name__ == "__main__":
-#    # from nist test key https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.197.pdf
-#    key=bytes.fromhex("603deb1015ca71be2b73aef0857d77811f352c073b6108d72d9810a30914dff4")
-#    print(key)
-#    expanded = key_expansion(key)
-#    for w in expanded:
-#        #TODO actually it seems wrong: excpected a8b09c1a gotten a8b0ed1a , and same difference for all generated?
-#       print(w.hex())
+    debug_expansion()
+
 
     # test encryption
-    plaintext = bytes.fromhex("00112233445566778899aabbccddeeff")
-    key = bytes.fromhex("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
+    #plaintext = bytes.fromhex("00112233445566778899aabbccddeeff")
+    #key = bytes.fromhex("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
 
-    ct = aes(plaintext, key)
-    print(ct)
-    print(len(ct))
+    #ct = aes(plaintext, key)
+    #print(ct)
+    #print(len(ct))
