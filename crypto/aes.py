@@ -54,7 +54,7 @@ def shift_rows(state):
     for i in range(4):
         #iterate columns
         for j in range(4):
-            out_state[i][j]= state[i][(j-i)%4]
+            out_state[i][j]= state[i][(j+i)%4]
     return out_state
 
 
@@ -175,20 +175,25 @@ def add_round_key(state,expandedKey):
     out_state = np.zeros((4,4), dtype=int)
     print("k_sch:", "".join([f'{byte:02x}' for array in expandedKey for byte in array]))
     #print("state:", "".join([f'{byte:02x}' for array in state for byte in array]))
+    #le key schedule est pas dans le bon ordre par rapport au state donc j'inverse (TODO : reparer)
     for i in range(0,4):
         for j in range(0,4):
-            out_state[i][j]= state[i][j] ^ expandedKey[i][j]
+            out_state[i][j]= state[i][j] ^ expandedKey[j][i]
     return out_state
 
 
+def print_state(msg, state):
+    print(msg , "".join([f'{state[i%4][i//4]:02x}' for i in range(16)]))
+
+
 def aes_round(state, expandedKey):
-    print("start: ", "".join([f'{byte:02x}' for array in state for byte in array]) )
+    print_state("start:", state)
     state= sub_bytes(state)
-    print("sbox: ", "".join([f'{byte:02x}' for array in state for byte in array]) )
+    print_state("sbox:", state)
     state = shift_rows(state)
-    print("s_rows: ", "".join([f'{byte:02x}' for array in state for byte in array]) )
+    print_state("s_rows:", state)
     state = mix_columns(state)
-    print("m_col: ", "".join([f'{byte:02x}' for array in state for byte in array]) )
+    print_state("m_col:", state)
     state = add_round_key(state, expandedKey)
     return state
 
@@ -226,8 +231,9 @@ def aes(bloc, key):
     print("bloc:", bloc)
     for i in range(4):
         for j in range(4):
-            state[i][j]= bloc[i*4+j]
-    print("state0: ", "".join([f'{byte:02x}' for array in state for byte in array]) )
+            state[i][j]= bloc[i+j*4]
+    # Cette facon d'imprimer l'état est correcte
+    print_state("state0:", state)
     return rijndael(state, key)
 
 def debug_expansion():
