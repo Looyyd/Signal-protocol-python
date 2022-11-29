@@ -173,16 +173,22 @@ def key_expansion(cipherKey):
 def add_round_key(state,expandedKey):
     # both are 4*4 matrices of bytes
     out_state = np.zeros((4,4), dtype=int)
+    print("k_sch:", "".join([f'{byte:02x}' for array in expandedKey for byte in array]))
+    #print("state:", "".join([f'{byte:02x}' for array in state for byte in array]))
     for i in range(0,4):
         for j in range(0,4):
             out_state[i][j]= state[i][j] ^ expandedKey[i][j]
-    return state
+    return out_state
 
 
 def aes_round(state, expandedKey):
+    print("start: ", "".join([f'{byte:02x}' for array in state for byte in array]) )
     state= sub_bytes(state)
+    print("sbox: ", "".join([f'{byte:02x}' for array in state for byte in array]) )
     state = shift_rows(state)
+    print("s_rows: ", "".join([f'{byte:02x}' for array in state for byte in array]) )
     state = mix_columns(state)
+    print("m_col: ", "".join([f'{byte:02x}' for array in state for byte in array]) )
     state = add_round_key(state, expandedKey)
     return state
 
@@ -206,15 +212,22 @@ def rijndael(state, cipherKey):
     state = aes_final_round(state, keys[n_rounds-1])
 
     #linearalize state
-    lin_state = bytes(state)
-    return lin_state
+    lin_state = []
+    for i in state:
+        for j in i:
+            lin_state.append(j)
+    #lin_state = bytes(state)
+    #lin_state = state
+    return bytes(lin_state)
 
 def aes(bloc, key):
     # transform plaintext into state
     state = np.zeros((4,4), dtype=int)
+    print("bloc:", bloc)
     for i in range(4):
         for j in range(4):
-            state[i][j]= bloc[i+4*j]
+            state[i][j]= bloc[i*4+j]
+    print("state0: ", "".join([f'{byte:02x}' for array in state for byte in array]) )
     return rijndael(state, key)
 
 def debug_expansion():
@@ -251,13 +264,14 @@ def debug_expansion():
             print("")
 
 if __name__ == "__main__":
-    debug_expansion()
+    #debug_expansion()
 
+    # taken from https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.197.pdf#page=46
+    plaintext = bytes.fromhex("00112233445566778899aabbccddeeff")
+    key = bytes.fromhex("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
+    expected = "8ea2b7ca516745bfeafc49904b496089"
 
-    # test encryption
-    #plaintext = bytes.fromhex("00112233445566778899aabbccddeeff")
-    #key = bytes.fromhex("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
-
-    #ct = aes(plaintext, key)
-    #print(ct)
-    #print(len(ct))
+    ct = aes(plaintext, key)
+    print("ct : ", ct)
+    print(len(ct))
+    print("expected : ", expected)
