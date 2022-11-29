@@ -211,16 +211,18 @@ def rijndael(state, cipherKey):
     # let state be a 4*4 array of bytes
     state = add_round_key(state, keys[0])
 
-    for i in range(1, n_rounds - 1):
+    for i in range(1, n_rounds):
         state = aes_round(state,keys[i])
     # Pas sur si n_rounds -1 ou n_rounds
-    state = aes_final_round(state, keys[n_rounds-1])
+    state = aes_final_round(state, keys[n_rounds])
 
     #linearalize state
     lin_state = []
-    for i in state:
-        for j in i:
-            lin_state.append(j)
+    for i in range(16):
+        lin_state.append(state[i%4][i//4])
+    #for i in state:
+        #for j in i:
+            #lin_state.append(j)
     #lin_state = bytes(state)
     #lin_state = state
     return bytes(lin_state)
@@ -269,9 +271,8 @@ def debug_expansion():
             counter += 1
             print("")
 
-if __name__ == "__main__":
-    #debug_expansion()
 
+def debug_aes():
     # taken from https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.197.pdf#page=46
     plaintext = bytes.fromhex("00112233445566778899aabbccddeeff")
     key = bytes.fromhex("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
@@ -281,3 +282,7 @@ if __name__ == "__main__":
     print("ct : ", ct)
     print(len(ct))
     print("expected : ", expected)
+
+if __name__ == "__main__":
+    #debug_expansion()
+    debug_aes()
