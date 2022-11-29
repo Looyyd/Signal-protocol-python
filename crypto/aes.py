@@ -58,6 +58,16 @@ def shift_rows(state):
     return out_state
 
 
+def inv_shift_rows(state):
+    out_state = np.zeros((4, 4), dtype=int)
+    # state is 4 by 4 array of bytes
+    # iterate rows
+    for i in range(4):
+        #iterate columns
+        for j in range(4):
+            out_state[i][j]= state[i][(j-i)%4]
+    return out_state
+
 def multiply_by_2(v):
     s = v << 1
     s &= 0xff
@@ -80,6 +90,7 @@ def mix_columns(grid):
     return new_grid
 
 
+# taken from https://medium.com/wearesinch/building-aes-128-from-the-ground-up-with-python-8122af44ebf9
 def mix_column(column):
     r = [
         multiply_by_2(column[0]) ^ multiply_by_3(
@@ -93,6 +104,9 @@ def mix_column(column):
     ]
     return r
 
+def inv_mix_columns(state):
+    return mix_columns((mix_columns((mix_columns(state)))))
+
 
 def sub_bytes(state):
     out_state = np.zeros((4, 4), dtype=int)
@@ -102,6 +116,14 @@ def sub_bytes(state):
             out_state[i][j]= Sbox[state[i][j]]
     return out_state
 
+
+def inv_sub_bytes(state):
+    out_state = np.zeros((4, 4), dtype=int)
+    # state is 4 by 4 array of bytes
+    for i in range(4):
+        for j in range(4):
+            out_state[i][j]= Sbox_inv[state[i][j]]
+    return out_state
 
 def rot_word(word):
     word_out = []
@@ -198,12 +220,25 @@ def aes_round(state, expandedKey):
     return state
 
 
+def inv_aes_round(state, expandedKey):
+    state = inv_shift_rows(state)
+    state = inv_sub_bytes(state)
+    state = add_round_key(state, expandedKey)
+    state = inv_mix_columns(state)
+    return state
+
 def aes_final_round(state,expandedKey):
     state = sub_bytes(state)
     state = shift_rows(state)
     state = add_round_key(state, expandedKey)
     return state
 
+
+def inv_aes_final_round(state,expandedKey):
+    state = inv_shift_rows(state)
+    state=  inv_sub_bytes(state)
+    state = add_round_key(state, expandedKey)
+    return state
 
 def rijndael(state, cipherKey):
     keys = key_expansion(cipherKey)
@@ -227,6 +262,28 @@ def rijndael(state, cipherKey):
     #lin_state = state
     return bytes(lin_state)
 
+
+def inv_rijndael(state, cipherKey):
+    keys = key_expansion(cipherKey)
+
+    # let state be a 4*4 array of bytes
+    state = add_round_key(state, keys[n_rounds])
+
+    for i in reversed(range(1, n_rounds)):
+        state = inv_aes_round(state,keys[i])
+    # Pas sur si n_rounds -1 ou n_rounds
+    state = inv_aes_final_round(state, keys[0])
+
+    #linearalize state
+    lin_state = []
+    for i in range(16):
+        lin_state.append(state[i%4][i//4])
+    #for i in state:
+    #for j in i:
+    #lin_state.append(j)
+    #lin_state = bytes(state)
+    #lin_state = state
+    return bytes(lin_state)
 def aes(bloc, key):
     # transform plaintext into state
     state = np.zeros((4,4), dtype=int)
@@ -237,6 +294,17 @@ def aes(bloc, key):
     # Cette facon d'imprimer l'état est correcte
     print_state("state0:", state)
     return rijndael(state, key)
+
+def inv_aes(bloc, key):
+    # transform plaintext into state
+    state = np.zeros((4,4), dtype=int)
+    print("bloc:", bloc)
+    for i in range(4):
+        for j in range(4):
+            state[i][j]= bloc[i+j*4]
+    # Cette facon d'imprimer l'état est correcte
+    print_state("state0:", state)
+    return inv_rijndael(state, key)
 
 def debug_expansion():
     key = bytes.fromhex("603deb1015ca71be2b73aef0857d77811f352c073b6108d72d9810a30914dff4")
@@ -282,6 +350,9 @@ def debug_aes():
     print("ct : ", ct)
     print(len(ct))
     print("expected : ", expected)
+
+    msg = inv_aes(ct, key)
+    print(msg)
 
 if __name__ == "__main__":
     #debug_expansion()
