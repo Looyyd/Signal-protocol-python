@@ -24,10 +24,10 @@ def pad(input: bytearray):
     #pad_length between 1 and rate/8
     if pad_length==1:
         #we append only 1 block
-        input.extend(b'\x81')
+        input.extend(b'\x61')
     #if need to append more than 1 block
     else:
-        input.extend(b'\x80')
+        input.extend(b'\x60')
         for i in range(0, pad_length-2):
             input.extend(b'\x00')
         input.extend(b'\x01')
@@ -41,6 +41,7 @@ def array_1Dto3D(state: bytearray):
             for k in range(0,w):
                 # we take bit number (5i + j) × w + k
                 n = (5*i + j) * w + k
+                #byte = state[n//8]
                 byte = state[n//8]
                 #we make sure the value is 0*7 + bit
                 bit = (byte >> (7 - (n%8))) & 1
@@ -134,6 +135,7 @@ def array_3Dto1D(state3D):
         for j in range(0,5):
             for k in range(0,w):
                 #we add the bit to the current byte
+                # TODO is that the right order? isn't j before i?
                 byte = byte + (int(state3D[i][j][k]) << 7-bit_counter)
                 bit_counter+=1
                 if (bit_counter == 8):
@@ -152,10 +154,51 @@ def xor_state(state : bytearray, p : bytearray):
         state[i] = state[i] ^ p[i]
     return state
 
+def print3D(m, state3D):
+    print(m)
+    bit_c = 0
+    word_c = 0
+    n =0
+    for i in state3D:
+        for j in i:
+            for k in j:
+                # we take bit number (5i + j) × w + k, when creating
+                #                     factor
+                k_n = bit_c % w
+                factor = ((bit_c - k_n) // w)
+                j_n = factor%5
+                i_n = (factor - j_n) // 5
+
+                # chinoiserie avec les bits car c'est en big endian dans le doc du NIST
+                n = n//2 + state3D[i_n][j_n][k_n]*2**7
+                bit_c= bit_c+1
+#                if(bit_c%4==0):
+#                    print(f'{int(n):1x}', end='')
+#                    n=0
+                if(bit_c%8==0):
+                    #byte =int.from_bytes(int(n).to_bytes(1,'big'),'little')
+                    #print(f'{byte:02x}', end='')
+                    print(f'{int(n):02x}', end='')
+                    n=0
+                    print(' ', end='')
+                    word_c = word_c +1
+                    if(word_c%16==0):
+                        print("")
+    print("\n")
+
+
 def _f(state : bytearray):
+    print(state)
     state3D = array_1Dto3D(state)
     for r in range(n_rounds):
-            state3D = iota(chi(pi(rho(theta(state3D)))), r)
+            print("Round : ", r)
+            print3D("Before theta:", state3D)
+            state3D = theta(state3D)
+            print3D("After theta :",state3D)
+            state3D = rho(state3D)
+            state3D = pi(state3D)
+            state3D = chi(state3D)
+            state3D = iota(state3D, r)
     state = array_3Dto1D(state3D)
     state = bytearray(state)
     return state
@@ -163,8 +206,12 @@ def _f(state : bytearray):
 def Sha3_512(input: bytearray):
     # appending a two-bit suffix to M
     # TODO pas sur que ca soit ca qu'il faut ajouter
-    input.extend(b'\x06')
+    # normalement il faut ajouter que 2 bit
+    # SHA3-512(M) = KECCAK[1024] (M || 01, 512).
+    # j'inclu ca dans le padding:
+    #input.extend(b'\x06')
     #Padding
+    # KECCAK[c] = SPONGE[KECCAK-p[1600, 24], pad10*1, 1600 – c].
     input = pad(input)
     print("Data to be absorbed")
     print(input)
@@ -177,6 +224,7 @@ def Sha3_512(input: bytearray):
     for i in range(0,n):
         #absorb the input into the state: for each block Pi
         state = xor_state(state,input[byte_rate*i:byte_rate*(i+1)])
+        print("xored state: ", state)
         #apply the block permutation f to the result, yielding a new state S
         state= _f(state)
 
