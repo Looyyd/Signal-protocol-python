@@ -57,7 +57,7 @@ def theta(state3D):
             for k in range(0, w):
                 bit = state3D[i][j][k]
                 parity1 = sum(state3D[:,(j-1)%5,k])%2
-                parity2 = sum(state3D[:,(j+1)%5,k])%2
+                parity2 = sum(state3D[:,(j+1)%5,k-1])%2
                 out_state3D[i][j][k]= (bit + parity1 + parity2) %2
 
     return out_state3D
