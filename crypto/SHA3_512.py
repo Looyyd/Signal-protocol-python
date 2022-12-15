@@ -257,10 +257,10 @@ def Sha3_512(input: bytearray):
     #input.extend(b'\x06')
     #Padding
     # KECCAK[c] = SPONGE[KECCAK-p[1600, 24], pad10*1, 1600 – c].
-    print("input =", input)
+    #print("input =", input)
     input = pad(input)
-    print("Data to be absorbed")
-    print(input)
+    #print("Data to be absorbed")
+    #print(input)
     #Absorbing
     #break input into n consecutive r-bit pieces P0, ..., Pn−1
     n = len(input)// byte_rate
@@ -269,9 +269,9 @@ def Sha3_512(input: bytearray):
 
     for i in range(0,n):
         #absorb the input into the state: for each block Pi
-        print("state: ", state)
+        #print("state: ", state)
         state = xor_state(state,input[byte_rate*i:byte_rate*(i+1)])
-        print("xored state: ", state)
+        #print("xored state: ", state)
         #apply the block permutation f to the result, yielding a new state S
         state= _f(state,i)
 
