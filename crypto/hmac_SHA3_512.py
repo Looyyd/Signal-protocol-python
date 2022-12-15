@@ -6,17 +6,26 @@ def xor(x, y):
 
 # inspired by https://stackoverflow.com/a/56085727/15403395
 def hmad_sha3_512(K, message):
+    #TODO, ne correspond pas au vecteurs NIST
     block_len = 72
-    K = bytearray(K, encoding="utf-8")
+    type_K = type(K)
+    if type_K == str:
+        K = bytearray(K, encoding="utf-8")
+    else:
+        K = bytearray(K)
     if (len(K) > block_len ):
         K = SHA3_512.Sha3_512(K)
     elif (len(K)< block_len):
         # padd with zeroes
         K = bytearray(K) + bytes(b'\x00') * (block_len - len(K))
+    if type(message) == str:
+        message = bytearray(message,encoding="utf-8")
+    else:
+        message : bytearray(message)
+
     ipad =bytearray(block_len * "\x36", encoding="utf-8")
     opad = bytearray(block_len* "\x5c", encoding="utf-8")
-    #suppose utf-8 encoding
-    message = bytearray(message,encoding="utf-8")
+
     print("Text is:", binascii.hexlify(message))
     print("Key is:", binascii.hexlify(K))
 
