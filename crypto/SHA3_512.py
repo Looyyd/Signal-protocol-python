@@ -119,30 +119,33 @@ def rc(t):
 def iota(state3D, n_round):
     out_state3D = np.array(state3D)
     RC=np.zeros(w)
-    for j in range(0, l):
-        RC[2**j -1]=rc(j+7*n_round)
-    for z in range(0,w):
-        out_state3D[0][0][z]=(state3D[0][0][z] + RC[z]) %2
+    # l+1 because it's l included
+    for m in range(0,l+1):
+        out_state3D[0][0][2**m -1] = (out_state3D[0][0][2**m -1] + rc(m+7*n_round)) %2
+#    for m in range(0, l):
+#        RC[2**m -1]=rc(m+7*n_round)
+#    for z in range(0,w):
+#        out_state3D[0][0][z]=(state3D[0][0][z] + RC[z]) %2
     return out_state3D
 
 
 
-def array_3Dto1D(state3D):
-    state = bytearray()
-    bit_counter = 0
-    byte = 0
-    for i in range(0,5):
-        for j in range(0,5):
-            for k in range(0,w):
-                #we add the bit to the current byte
-                # TODO is that the right order? isn't j before i?
-                byte = byte + (int(state3D[i][j][k]) << 7-bit_counter)
-                bit_counter+=1
-                if (bit_counter == 8):
-                    bit_counter=0
-                    state.extend(bytes([byte]))
-                    byte=0
-    return state
+#def array_3Dto1D(state3D):
+#    state = bytearray()
+#    bit_counter = 0
+#    byte = 0
+#    for i in range(0,5):
+#        for j in range(0,5):
+#            for k in range(0,w):
+#                #we add the bit to the current byte
+#                # TODO is that the right order? isn't j before i?
+#                byte = byte + (int(state3D[i][j][k]) << 7-bit_counter)
+#                bit_counter+=1
+#                if (bit_counter == 8):
+#                    bit_counter=0
+#                    state.extend(bytes([byte]))
+#                    byte=0
+#    return state
 
 
 
@@ -153,6 +156,29 @@ def xor_state(state : bytearray, p : bytearray):
     for i in range (0,len(p)):
         state[i] = state[i] ^ p[i]
     return state
+
+def array_3Dto1D(state3D):
+    out_state = bytearray()
+    bit_c = 0
+    word_c = 0
+    n =0
+    for i in state3D:
+        for j in i:
+            for k in j:
+                # we take bit number (5i + j) × w + k, when creating
+                #                     factor
+                k_n = bit_c % w
+                factor = ((bit_c - k_n) // w)
+                j_n = factor%5
+                i_n = (factor - j_n) // 5
+
+                # chinoiserie avec les bits car c'est en big endian dans le doc du NIST
+                n = n//2 + state3D[i_n][j_n][k_n]*2**7
+                bit_c= bit_c+1
+                if(bit_c%8==0):
+                    out_state.append(int(n))
+                    n=0
+    return out_state
 
 def print3D(m, state3D):
     print(m)
@@ -188,22 +214,24 @@ def print3D(m, state3D):
 
 
 def _f(state : bytearray):
-    print(state)
+    #print(state)
     state3D = array_1Dto3D(state)
     for r in range(n_rounds):
-            print("Round : ", r)
-            print3D("Before theta:", state3D)
+            #print("Round : ", r)
+            #print3D("Before theta:", state3D)
             state3D = theta(state3D)
-            print3D("After theta :",state3D)
+            #print3D("After theta :",state3D)
             state3D = rho(state3D)
-            print3D("After rho :",state3D)
+            #print3D("After rho :",state3D)
             state3D = pi(state3D)
-            print3D("After pi :",state3D)
+            #print3D("After pi :",state3D)
             state3D = chi(state3D)
-            print3D("After chi :",state3D)
+            #print3D("After chi :",state3D)
             state3D = iota(state3D, r)
-            print3D("After iota :",state3D)
+            #print3D("After iota :",state3D)
+    #print3D("Last 3D state", state3D)
     state = array_3Dto1D(state3D)
+    #print("3D to 1D state", state)
     state = bytearray(state)
     return state
 
@@ -233,6 +261,9 @@ def Sha3_512(input: bytearray):
         state= _f(state)
 
 
+    #print("STARTED SQUEEZING")
+    #print("State =", state)
+
     #Squeezing
     #initialize Z to be the empty string
     z = bytearray()
@@ -241,6 +272,8 @@ def Sha3_512(input: bytearray):
     while(len(z) < d) :
         z.extend(state[0:byte_rate])
         state = _f(state)
+
+    #print("z = ", z)
 
     #truncate Z to d bits
     z=z[0:d]
