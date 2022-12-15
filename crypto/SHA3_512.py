@@ -49,6 +49,20 @@ def array_1Dto3D(state: bytearray):
 
     return state3D
 
+def array_1Dto3D_internal(state: bytearray):
+    state3D = np.zeros((5,5,w))
+    for i in range(0,5):
+        for j in range(0,5):
+            for k in range(0,w):
+                # we take bit number (5i + j) × w + k
+                n = (i + 5*j) * w + k
+                #byte = state[n//8]
+                byte = state[n//8]
+                #we make sure the value is 0*7 + bit
+                bit = (byte >> (7 - (n%8))) & 1
+                state3D[i][j][k]=bit
+
+    return state3D
 
 def theta(state3D):
     out_state3D= np.zeros((5,5,w))
@@ -130,22 +144,22 @@ def iota(state3D, n_round):
 
 
 
-#def array_3Dto1D(state3D):
-#    state = bytearray()
-#    bit_counter = 0
-#    byte = 0
-#    for i in range(0,5):
-#        for j in range(0,5):
-#            for k in range(0,w):
-#                #we add the bit to the current byte
-#                # TODO is that the right order? isn't j before i?
-#                byte = byte + (int(state3D[i][j][k]) << 7-bit_counter)
-#                bit_counter+=1
-#                if (bit_counter == 8):
-#                    bit_counter=0
-#                    state.extend(bytes([byte]))
-#                    byte=0
-#    return state
+def array_3Dto1D(state3D):
+    state = bytearray()
+    bit_counter = 0
+    byte = 0
+    for i in range(0,5):
+        for j in range(0,5):
+            for k in range(0,w):
+                #we add the bit to the current byte
+                # TODO is that the right order? isn't j before i?
+                byte = byte + (int(state3D[i][j][k]) << 7-bit_counter)
+                bit_counter+=1
+                if (bit_counter == 8):
+                    bit_counter=0
+                    state.extend(bytes([byte]))
+                    byte=0
+    return state
 
 
 
@@ -157,7 +171,7 @@ def xor_state(state : bytearray, p : bytearray):
         state[i] = state[i] ^ p[i]
     return state
 
-def array_3Dto1D(state3D):
+def array_3Dto1D_final(state3D):
     out_state = bytearray()
     bit_c = 0
     word_c = 0
@@ -213,8 +227,8 @@ def print3D(m, state3D):
     print("\n")
 
 
-def _f(state : bytearray):
-    #print(state)
+def _f(state : bytearray, iteration :int):
+    #if iteration first iteration then have to convert it to NIST format
     state3D = array_1Dto3D(state)
     for r in range(n_rounds):
             #print("Round : ", r)
@@ -237,13 +251,13 @@ def _f(state : bytearray):
 
 def Sha3_512(input: bytearray):
     # appending a two-bit suffix to M
-    # TODO pas sur que ca soit ca qu'il faut ajouter
     # normalement il faut ajouter que 2 bit
     # SHA3-512(M) = KECCAK[1024] (M || 01, 512).
-    # j'inclu ca dans le padding:
+    # j'inclu ca dans le padding, car on fait que des multiples de 8 bits:
     #input.extend(b'\x06')
     #Padding
     # KECCAK[c] = SPONGE[KECCAK-p[1600, 24], pad10*1, 1600 – c].
+    print("input =", input)
     input = pad(input)
     print("Data to be absorbed")
     print(input)
@@ -255,10 +269,11 @@ def Sha3_512(input: bytearray):
 
     for i in range(0,n):
         #absorb the input into the state: for each block Pi
+        print("state: ", state)
         state = xor_state(state,input[byte_rate*i:byte_rate*(i+1)])
         print("xored state: ", state)
         #apply the block permutation f to the result, yielding a new state S
-        state= _f(state)
+        state= _f(state,i)
 
 
     #print("STARTED SQUEEZING")
@@ -268,12 +283,15 @@ def Sha3_512(input: bytearray):
     #initialize Z to be the empty string
     z = bytearray()
     d= output_len//8
+    #the final hash in in little endian like in NIST doc
+    state_to_squeeze=array_3Dto1D_final(array_1Dto3D(state))
     #while the length of Z is less than d
     while(len(z) < d) :
-        z.extend(state[0:byte_rate])
-        state = _f(state)
+        z.extend(state_to_squeeze[0:byte_rate])
+        state = _f(state,1)
+        #the final hash in in little endian like in NIST doc
+        state_to_squeeze=array_3Dto1D_final(array_1Dto3D(state))
 
-    #print("z = ", z)
 
     #truncate Z to d bits
     z=z[0:d]
@@ -281,12 +299,26 @@ def Sha3_512(input: bytearray):
     return z
 
 if __name__ == "__main__":
+    # https://csrc.nist.gov/CSRC/media/Projects/Cryptographic-Standards-and-Guidelines/documents/examples/SHA3-512_Msg0.pdf
     input = ""
     input_bytes = bytearray()
     input_bytes.extend(map(ord, input))
     print(input_bytes)
     hash = Sha3_512(input_bytes)
     print('hash : ', binascii.hexlify(hash))
+
+
+
+    # TEST  1600-bit message
+    # https://csrc.nist.gov/CSRC/media/Projects/Cryptographic-Standards-and-Guidelines/documents/examples/SHA3-512_1600.pdf
+
+    input="\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5\xc5"
+    input_bytes = bytearray()
+    input_bytes.extend(map(ord, input))
+    print(input_bytes)
+    hash = Sha3_512(input_bytes)
+    print('hash : ', binascii.hexlify(hash))
+
 
 #    test_state='A'*(1600//8)
 #    input_bytes = bytearray()
