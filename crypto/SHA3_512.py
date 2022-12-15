@@ -76,7 +76,7 @@ def chi(state3D):
         for j in range(0, 5):
             for k in range(0, w):
                 x = int(state3D[i,j,k])
-                not_y = int((state3D[i,(j+2)%5,k]+1)%2)
+                not_y = int((state3D[i,(j+1)%5,k]+1)%2)
                 z = int(state3D[i,(j+2)%5,k])
                 out_state3D[i,j,k] = x ^(not_y & z)
     return out_state3D
@@ -196,9 +196,13 @@ def _f(state : bytearray):
             state3D = theta(state3D)
             print3D("After theta :",state3D)
             state3D = rho(state3D)
+            print3D("After rho :",state3D)
             state3D = pi(state3D)
+            print3D("After pi :",state3D)
             state3D = chi(state3D)
+            print3D("After chi :",state3D)
             state3D = iota(state3D, r)
+            print3D("After iota :",state3D)
     state = array_3Dto1D(state3D)
     state = bytearray(state)
     return state
