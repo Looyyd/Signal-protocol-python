@@ -40,8 +40,9 @@ if __name__ == "__main__":
 
     encrypted = xor( message, counter_mode_aes( len(message)*8//128 +1 , nonce, key) )
 
-    print(encrypted)
 
     decrypted = xor( encrypted,  counter_mode_aes( len(encrypted)*8//128 +1 , nonce, key) )
 
+    print(encrypted)
+    print(len(encrypted) == len(message))
     print(decrypted)

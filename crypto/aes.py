@@ -1,5 +1,10 @@
 import numpy as np
 
+AES_BLOCK_SIZE = 128
+AES_BLOCK_SIZE_BYTES = AES_BLOCK_SIZE//8
+AES_KEY_SIZE = 256
+AES_KEY_SIZE_BYES = AES_KEY_SIZE//8
+
 keysize= 256
 bloc_size = 128
 n_rounds = 14
