@@ -1,3 +1,5 @@
+# resquests will be used to make API calls
+import requests
 
 
 # This package contains the functions needed by a signal client
@@ -6,6 +8,9 @@
 
 class client:
     id = None
+    # for now server will be on same host
+    server_ip = "localhost"
+    server_port = 80
     def __init__(self, id):
         #id should be an unique identifier, TODO to be determined exactly how it looks
         self.id = id

@@ -1,3 +1,5 @@
+# flask will be used for the REST API
+import flask
 
 
 
@@ -6,6 +8,9 @@
 
 
 class server:
+    def __init__(self):
+        return
+
     # The server needs to be able to store keys bundles frm an id
     def store_key_bundle(self, keys, id):
         return
