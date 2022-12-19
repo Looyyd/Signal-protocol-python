@@ -1,6 +1,7 @@
 # resquests will be used to make API calls
 import requests
 import os
+from crypto.diffie_hellman import *
 
 
 # This package contains the functions needed by a signal client
@@ -16,6 +17,11 @@ class client:
     # for now server will be on same host
     server_ip = "127.0.0.1"
     server_port = 5000
+    key_size = 256
+    identity_key = None
+    signed_prekey = None
+    prekey_signature = None
+    one_time_prekeys = []
     key_bundle = None
     def __init__(self, id):
         #id should be an unique identifier, TODO to be determined exactly how it looks
@@ -23,8 +29,39 @@ class client:
 
     #The client needs to be able to register to the server, ie send their key bundle to the server
     def register(self):
+        self.generate_keys()
         self.send_key_bundle()
         return
+
+    def create_bundle(self):
+        #bundle contains first DH steps of each key
+        # p stands for public
+        p_identity_key = hex(dh_step1(self.identity_key))
+        p_signed_prekey = hex(dh_step1(self.signed_prekey))
+        p_one_time_prekeys = []
+        for key in self.one_time_prekeys:
+            p_one_time_prekeys.append(hex(dh_step1(key)))
+        #bundle should be json
+        #TODO: add signature to bundle
+        json_string = {"p_identity_key": p_identity_key, "p_signed_prekey": p_signed_prekey, "p_one_time_prekeys": p_one_time_prekeys}
+        self.key_bundle = str(json_string)
+        return
+
+    def generate_keys(self):
+        # First the client generates by sending:
+        # One identity key
+        # one signed prekey and it's signature
+        # A defined number of prekeys
+
+        self.identity_key = randbits(self.key_size)
+        # TODO: add signature
+        self.signed_prekey = randbits(self.key_size)
+        self.one_time_prekeys.append(randbits(self.key_size))
+
+        # Create key bundle
+        self.create_bundle()
+        return
+
 
     def send_key_bundle(self):
         #api endpoint is:
@@ -80,7 +117,6 @@ if __name__ == "__main__":
     id_client1 = 1
     client1 = client(id_client1)
     message = "Test message"
-    client1.key_bundle = "KEYSKEYSKEYS"
     client1.register()
     keys = client1.get_key_bundle(client1.id)
     print(keys)

@@ -34,7 +34,7 @@ class server:
         conn = sqlite3.connect(self.db_name)
         c = conn.cursor()
         #TODO: check id is unique,or give back unique id
-        sql = "INSERT INTO users (user_id, key_bundle) VALUES(?,?)"
+        sql = "INSERT OR REPLACE INTO users (user_id, key_bundle) VALUES(?,?)"
         args = (from_id, keys)
         c.execute(sql,args)
         conn.commit()
