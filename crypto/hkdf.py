@@ -24,6 +24,9 @@ def hkdf(length, salt, password, c_iter ):
         output.extend(F(password, salt, c_iter, i))
     return output
 
+def session_key_derivation(keys_str):
+    # 2 iteration car mon implémentation est giga slow
+    return hkdf(512//8, "", keys_str, 2)
 
 if __name__ == "__main__":
     # TODO, normalement le nombre d'itérations c'est 1000 au moins

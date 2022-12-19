@@ -3,6 +3,7 @@ from secrets import token_bytes
 
 # standard https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38a.pdf
 AES_BLOCK_SIZE = 128
+AES_KEY_SIZE = 256
 
 # returns a stream of length_in_blocks*128
 def counter_mode_aes(length_in_blocks, nonce, key):

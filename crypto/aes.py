@@ -200,7 +200,7 @@ def key_expansion(cipherKey):
 def add_round_key(state,expandedKey):
     # both are 4*4 matrices of bytes
     out_state = np.zeros((4,4), dtype=int)
-    print("k_sch:", "".join([f'{byte:02x}' for array in expandedKey for byte in array]))
+    #print("k_sch:", "".join([f'{byte:02x}' for array in expandedKey for byte in array]))
     #print("state:", "".join([f'{byte:02x}' for array in state for byte in array]))
     #le key schedule est pas dans le bon ordre par rapport au state donc j'inverse (TODO : reparer)
     for i in range(0,4):
@@ -214,13 +214,13 @@ def print_state(msg, state):
 
 
 def aes_round(state, expandedKey):
-    print_state("start:", state)
+    #print_state("start:", state)
     state= sub_bytes(state)
-    print_state("sbox:", state)
+    #print_state("sbox:", state)
     state = shift_rows(state)
-    print_state("s_rows:", state)
+    #print_state("s_rows:", state)
     state = mix_columns(state)
-    print_state("m_col:", state)
+    #print_state("m_col:", state)
     state = add_round_key(state, expandedKey)
     return state
 
@@ -292,23 +292,23 @@ def inv_rijndael(state, cipherKey):
 def aes(bloc, key):
     # transform plaintext into state
     state = np.zeros((4,4), dtype=int)
-    print("bloc:", bloc)
+    #print("bloc:", bloc)
     for i in range(4):
         for j in range(4):
             state[i][j]= bloc[i+j*4]
     # Cette facon d'imprimer l'état est correcte
-    print_state("state0:", state)
+    #print_state("state0:", state)
     return rijndael(state, key)
 
 def inv_aes(bloc, key):
     # transform plaintext into state
     state = np.zeros((4,4), dtype=int)
-    print("bloc:", bloc)
+    #print("bloc:", bloc)
     for i in range(4):
         for j in range(4):
             state[i][j]= bloc[i+j*4]
     # Cette facon d'imprimer l'état est correcte
-    print_state("state0:", state)
+    #print_state("state0:", state)
     return inv_rijndael(state, key)
 
 def debug_expansion():

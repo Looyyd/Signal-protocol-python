@@ -26,18 +26,18 @@ def hmad_sha3_512(K, message):
     ipad =bytearray(block_len * "\x36", encoding="utf-8")
     opad = bytearray(block_len* "\x5c", encoding="utf-8")
 
-    print("Text is:", binascii.hexlify(message))
-    print("Key is:", binascii.hexlify(K))
+    #print("Text is:", binascii.hexlify(message))
+    #print("Key is:", binascii.hexlify(K))
 
     k_ipad = bytearray(xor(ipad, K))
     #print("ipad is:", binascii.hexlify(ipad))
-    print("k_ipad is:", binascii.hexlify(k_ipad))
+    #print("k_ipad is:", binascii.hexlify(k_ipad))
     k_ipad_msg = k_ipad + message
-    print("k_ipad_msg:", binascii.hexlify(k_ipad_msg))
+    #print("k_ipad_msg:", binascii.hexlify(k_ipad_msg))
     h_inner = SHA3_512.Sha3_512(k_ipad + message)
-    print("h_inner is:", binascii.hexlify(h_inner))
+    #print("h_inner is:", binascii.hexlify(h_inner))
     k_opad = bytearray(xor(opad,K))
-    print("k_opad is:", binascii.hexlify(k_opad))
+    #print("k_opad is:", binascii.hexlify(k_opad))
     hmac = SHA3_512.Sha3_512(bytearray(k_opad + h_inner))
     return hmac
 
