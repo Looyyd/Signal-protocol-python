@@ -37,8 +37,22 @@ def receive_message():
 
 
 # to register
-@app.post("/register")
-def register():
+@app.post("/keys")
+def post_keys():
     if request.is_json:
+        json_message = request.get_json()
+        from_id = json_message["from_id"]
+        keys = json_message["keys"]
+        server.store_key_bundle(keys,from_id)
         return
+    return {"error": "Request must be JSON"}, 415
+
+@app.get("/keys")
+def get_keys():
+    if request.is_json:
+        json_message = request.get_json()
+        from_id = json_message["from_id"]
+        rows = server.send_key_bundle(from_id)
+        jsonRows = json.dumps(rows)
+        return jsonRows, 200
     return {"error": "Request must be JSON"}, 415

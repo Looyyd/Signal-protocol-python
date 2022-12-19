@@ -5,13 +5,18 @@ import os
 
 # This package contains the functions needed by a signal client
 
-
+def read_messages(messages):
+    for msg in messages:
+        from_id = msg[1]
+        txt = msg[3]
+        print("Message from id ", from_id, ": ", txt)
 
 class client:
     id = None
     # for now server will be on same host
     server_ip = "127.0.0.1"
     server_port = 5000
+    key_bundle = None
     def __init__(self, id):
         #id should be an unique identifier, TODO to be determined exactly how it looks
         self.id = id
@@ -22,8 +27,21 @@ class client:
         return
 
     def send_key_bundle(self):
-        return
+        #api endpoint is:
+        url = "http://" + self.server_ip + ":" + str(self.server_port) + "/keys"
+        message_json = {"from_id": self.id, "keys": self.key_bundle}
+        response = requests.post(url, json=message_json )
+        #not sure what to return for now
+        return response.status_code
 
+    def get_key_bundle(self, from_id):
+        #api endpoint is:
+        url = "http://" + self.server_ip + ":" + str(self.server_port) + "/keys"
+        message_json = {"from_id": from_id}
+        response = requests.get(url, json=message_json )
+        #not sure what to return for now
+        #TODO: input validate json to not error when not json is received(which happens when server errors for exemple)
+        return response.json()
 
     # The client needs to be able to request messages that are destined to it
     def request_messages(self):
@@ -62,11 +80,16 @@ if __name__ == "__main__":
     id_client1 = 1
     client1 = client(id_client1)
     message = "Test message"
+    client1.key_bundle = "KEYSKEYSKEYS"
+    client1.register()
+    keys = client1.get_key_bundle(client1.id)
+    print(keys)
     to_id = 2
     #print return code
-    print(client1.send_message(to_id,message))
+    #print(client1.send_message(to_id,message))
 
     id_client2 = 2
     client2 = client(id_client2)
     messages = client2.request_messages()
     print(messages)
+    read_messages(messages)

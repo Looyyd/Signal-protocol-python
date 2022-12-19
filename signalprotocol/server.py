@@ -30,19 +30,25 @@ class server:
         return
 
     # The server needs to be able to store keys bundles frm an id
-    def store_key_bundle(self, keys, id):
+    def store_key_bundle(self, keys, from_id):
         conn = sqlite3.connect(self.db_name)
         c = conn.cursor()
         #TODO: check id is unique,or give back unique id
-        sql = "INSERT INTO users (id, key_bundle) VALUES(?,?)"
-        args = (id, keys)
+        sql = "INSERT INTO users (user_id, key_bundle) VALUES(?,?)"
+        args = (from_id, keys)
         c.execute(sql,args)
         conn.commit()
         return
 
     # The server needs to be able to send the key bundle to someone requesting it
     def send_key_bundle(self, from_id):
-        return
+        conn = sqlite3.connect(self.db_name)
+        c = conn.cursor()
+        sql = "SELECT * FROM users where user_id=(?)"
+        args = (str(from_id))
+        c.execute(sql, args)
+        rows = c.fetchall()
+        return rows
 
     # the server needs to be able to store messages destined to an id
     def store_message(self, message, from_id, to_id):
