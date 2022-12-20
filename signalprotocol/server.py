@@ -69,6 +69,12 @@ class server:
         args = (str(to_id))
         c.execute(sql, args)
         rows = c.fetchall()
+
+        # remove the messages afterwards, would be better only if connection succeeds
+        sql = "DELETE FROM messages where to_id=(?)"
+        cur = conn.cursor()
+        cur.execute(sql, (to_id,))
+        conn.commit()
         return rows
 
 

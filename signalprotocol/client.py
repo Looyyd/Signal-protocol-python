@@ -6,6 +6,7 @@ import json
 from crypto.hkdf import *
 from crypto.counter_mode import *
 from crypto.bytearray_operations import *
+import sqlite3
 
 
 # This package contains the functions needed by a signal client
@@ -23,9 +24,12 @@ class client:
     prekey_signature = None
     one_time_prekeys = []
     key_bundle = None
+
+    db_name = None
     def __init__(self, id):
         #id should be an unique identifier, TODO to be determined exactly how it looks
         self.id = id
+        self.db_name = "client-" + str(self.id) + ".db"
 
     #The client needs to be able to register to the server, ie send their key bundle to the server
     def register(self):
@@ -160,6 +164,7 @@ class client:
 
     def read_messages(self,messages):
         for msg in messages:
+            print(msg)
             from_id = msg[1]
             txt = msg[3]
             json_message = json.loads(txt)
@@ -188,9 +193,73 @@ class client:
             ciphertext = to_bytearray(ciphertext)
             # stream cipher
             decrypted = xor(ciphertext, stream)
-
-
             print("Message from id ", from_id, ": ", decrypted)
+            #  add to local database
+            self.add_message_to_local_db(decrypted, from_id)
+
+    def add_message_to_local_db(self, message, from_id):
+        # create database if it doesn't exist
+        self.create_local_db()
+
+        conn = sqlite3.connect(self.db_name)
+        c = conn.cursor()
+
+        # append the message to the database
+        sql = "INSERT INTO messages (from_id, message) VALUES(?,?)"
+        args = (from_id, message)
+        c.execute(sql,args)
+
+        # commit changes
+        conn.commit()
+        return
+
+    def create_local_db(self):
+        conn = sqlite3.connect(self.db_name)
+        c = conn.cursor()
+        c.execute('''
+                          CREATE TABLE IF NOT EXISTS messages
+                          ([message_id] INTEGER PRIMARY KEY, [from_id] INTEGER, [message] TEXT)
+                          ''')
+        return
+
+
+    def read_local_messages_from(self, from_id):
+        #create if doesn't exist
+        self.create_local_db()
+        # print all messages from local database
+        conn = sqlite3.connect(self.db_name)
+        c = conn.cursor()
+
+        sql = "SELECT * FROM messages WHERE from_id=(?)"
+        args = (from_id,)
+        c.execute(sql, args)
+
+        rows = c.fetchall()
+        for row in rows:
+            # 1 is row id
+            from_id = row[1]
+            message = row[2]
+            print("Message from ", from_id, ": ", message)
+        return
+
+    def read_all_local_message(self):
+
+        #create if doesn't exist
+        self.create_local_db()
+        # print all messages from local database
+        conn = sqlite3.connect(self.db_name)
+        c = conn.cursor()
+
+        sql = "SELECT * FROM messages"
+        c.execute(sql)
+
+        rows = c.fetchall()
+        for row in rows:
+            # 1 is row id
+            from_id = row[1]
+            message = row[2]
+            print("Message from ", from_id, ": ", message)
+        return
     # The client needs to be able to send files
     def send_file(self, to_id):
         return
@@ -224,3 +293,8 @@ if __name__ == "__main__":
     messages = client2.request_messages()
     print(messages)
     client2.read_messages(messages)
+
+    print("READIN ALL MESSSAGES")
+    client2.read_all_local_message()
+    print("READING ALL LOCAL FROM ID= 2")
+    client2.read_local_messages_from(2)

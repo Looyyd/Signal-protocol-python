@@ -131,3 +131,6 @@ dmypy.json
 
 #The signal database
 signal-db
+#client databases
+./signalprotocol/client-*.db
+
