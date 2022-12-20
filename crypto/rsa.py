@@ -4,13 +4,13 @@ import random
 
 # Basic encryptio/decryption functions
 
-def encrypt(message: int, ekey: int, mod: int)-> int:
+def encrypt(message: int, priv_key: int, mod: int)-> int:
     # Encrypt a message using RSA scheme
-    return pow(message,ekey,mod)
+    return pow(message,priv_key,mod)
     
-def decrypt(ciphermessage: int, dkey: int, mod: int)-> int:
+def decrypt(ciphermessage: int, pub_key: int, mod: int)-> int:
     # Decrypt a message using RSA scheme
-    return pow(ciphermessage,dkey,mod)
+    return pow(ciphermessage,pub_key,mod)
 
 
 # To calculate keys, we need 4 steps : 
@@ -19,9 +19,9 @@ def decrypt(ciphermessage: int, dkey: int, mod: int)-> int:
 # S3 : create public key (must not be a factor of E(n)) pubkey
 # S4 : create private key = pubkey^-1
 
-def long_2048_number():
+def large_prime_number():
     #Generating a 2048 bits long number
-    p = random.randrange(2**(2048-1)+1, 2**2048-1)
+    p = random.randrange(2**(512-1)+1, 2**512-1)
     return p
 
 def test_primality(n):
@@ -56,8 +56,57 @@ def test_primality(n):
             return False
     return True
 
+#Euclide and Extanded Euclide tests will be necessary to generate keys
+def pgcd(m, n):
+    if n == 0:
+        return m
+    else:
+        r = m % n
+        return pgcd(n, r)
 
-p = long_2048_number()
-while test_primality(p) == False:
-    p = long_2048_number()
-print(p)
+def inv_mod(e,n):
+    r0, u0, v0 = e, 1, 0
+    r1, u1, v1 = n, 0, 1
+    while r1 != 0:
+        r2 = r0 % r1
+        q2 = r0 // r1
+        u, v = u0, v0
+        r0, u0, v0 = r1, u1, v1
+        r1, u1, v1 = r2, u-q2*u1, v-q2*v1
+    if u0 < 0:
+        u0 = u0 + n
+    return u0
+
+# This function generates public and associated private key
+def generate_keys():
+
+    p = large_prime_number()
+    while test_primality(p) == False :
+        p = large_prime_number()
+    q = large_prime_number()
+    if p == q :
+        while p == q :
+            q = large_prime_number()
+    while test_primality(q) == False :
+        q = large_prime_number()
+
+    n = p*q
+    ind_n = (p-1)*(q-1)
+
+    pub_key = random.randint(2, ind_n)
+    while pgcd(pub_key, ind_n) != 1:
+        pub_key = random.randint(2, ind_n)
+    
+    priv_key = inv_mod(pub_key, ind_n)
+
+    return pub_key, priv_key, n
+
+(pub, priv, mod) = generate_keys()
+m = 10
+c = encrypt(m, priv, mod)
+n = decrypt(c, pub, mod)
+print("Message", n)
+print("---------------------------------------------------------------------------------------------")
+print("Public Key", pub)
+print("---------------------------------------------------------------------------------------------")
+print("Private Key",priv)
