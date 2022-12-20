@@ -64,6 +64,15 @@ class server:
             else:
                 p_one_time_prekey_n = randrange(0,len(p_one_time_prekeys))
                 p_one_time_prekey = p_one_time_prekeys[p_one_time_prekey_n]
+                # remove selected prekey from prekeys
+                # would be better if it's deleted only if client receives it
+                del p_one_time_prekeys[p_one_time_prekey_n]
+
+            json_string['p_one_time_prekeys'] = p_one_time_prekeys
+            #save new keys (minus the chosen one)
+            self.store_key_bundle(json.dumps(json_string), from_id)
+
+            # create new string for answer
             del json_string["p_one_time_prekeys"]
             json_string.update({"p_one_time_prekey": p_one_time_prekey, "p_one_time_prekey_n": p_one_time_prekey_n})
         return json.dumps(json_string)

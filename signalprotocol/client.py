@@ -25,7 +25,7 @@ class client:
     one_time_prekeys = []
     key_bundle = None
     #generate 10 otk
-    number_otk = 10
+    number_otk = 1
 
     db_name = None
     def __init__(self, id):
@@ -206,6 +206,8 @@ class client:
             else:
                 one_time_prekey_used = self.one_time_prekeys[p_one_time_prekey_n]
                 dh4 = dh_step2(p_ephemeral_key, one_time_prekey_used)
+                # remove the one time prekey
+                del self.one_time_prekeys[p_one_time_prekey_n]
 
             # use KDF to get session key
             keys_str = str(dh1) +str(dh2) +str(dh3) +str(dh4)
@@ -312,6 +314,7 @@ if __name__ == "__main__":
     to_id = 2
     #print return code
     print(client1.send_message(to_id,message))
+    print(client1.send_message(to_id,"Message 2"))
 
 
     messages = client2.request_messages()
