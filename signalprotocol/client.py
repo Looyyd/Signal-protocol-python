@@ -24,6 +24,8 @@ class client:
     prekey_signature = None
     one_time_prekeys = []
     key_bundle = None
+    #generate 10 otk
+    number_otk = 10
 
     db_name = None
     def __init__(self, id):
@@ -60,7 +62,9 @@ class client:
         self.identity_key = randbits(self.key_size)
         # TODO: add signature
         self.signed_prekey = randbits(self.key_size)
-        self.one_time_prekeys.append(randbits(self.key_size))
+        # generate multiple keys
+        for i in range(0,self.number_otk):
+            self.one_time_prekeys.append(randbits(self.key_size))
 
         # Create key bundle
         self.create_bundle()
@@ -98,16 +102,17 @@ class client:
     def create_session_key(self, keys_response, ephemeral_key):
         # parse the response for keys
         #row array then second column
-        print(keys_response[0][1])
-        print(type(keys_response[0][1]))
-        json_string=json.loads(keys_response[0][1])
+        print("keys_response:", keys_response)
+        json_string=json.loads(keys_response)
         print("json_keys_string=", json_string)
         p_identity_key = int(json_string["p_identity_key"], 16)
         #TODO: verify signature
         p_signed_prekey = int(json_string["p_signed_prekey"], 16)
-        p_one_time_prekeys = json_string["p_one_time_prekeys"]
-        # take first one time prekey
-        p_one_time_prekey = int(p_one_time_prekeys[0],16)
+
+        # take the prekey it gave us
+        p_one_time_prekey = int(json_string["p_one_time_prekey"], 16)
+        # remember which key was used
+        p_one_time_prekey_n = json_string["p_one_time_prekey_n"]
 
         # Now to the 3 (optionnaly 4 if one time prekey is used) key exchanges
         # 1 The identity key of Alice and the signed prekey of Bob
@@ -151,7 +156,15 @@ class client:
         # ephermeral public key generation
         p_ephemeral_key = dh_step1(ephemeral_key)
         p_identity_key = dh_step1(self.identity_key)
-        message_json = {"p_identity_key": hex(p_identity_key),  "p_ephemeral_key": hex(p_ephemeral_key), "nonce": nonce.hex(), "ciphertext": encrypted.hex()}
+        # add the index of the one time key that was used
+        json_string=json.loads(keys_response)
+        p_one_time_prekey_n = json_string["p_one_time_prekey_n"]
+
+        message_json = {"p_identity_key": hex(p_identity_key),
+                        "p_ephemeral_key": hex(p_ephemeral_key),
+                        "nonce": nonce.hex(),
+                        "p_one_time_prekey_n": p_one_time_prekey_n,
+                        "ciphertext": encrypted.hex()}
 
         #api endpoint is:
         url = "http://" + self.server_ip + ":" + str(self.server_port) + "/message"
@@ -168,6 +181,7 @@ class client:
             from_id = msg[1]
             txt = msg[3]
             json_message = json.loads(txt)
+            print(json_message)
             p_identity_key =  int(json_message["p_identity_key"],16)
             p_ephemeral_key =  int(json_message["p_ephemeral_key"],16)
             nonce = to_bytearray( bytearray.fromhex(json_message["nonce"]))
@@ -181,7 +195,10 @@ class client:
             dh3 = dh_step2(p_ephemeral_key, self.signed_prekey)
             # 4 If Bob still has a one-time prekey available, his one-time prekey and the ephem-
             # eral key of Alice
-            dh4 = dh_step2(p_ephemeral_key, self.one_time_prekeys[0])
+            # use the one time prekey that is indicated
+            p_one_time_prekey_n = json_message["p_one_time_prekey_n"]
+            one_time_prekey_used = self.one_time_prekeys[p_one_time_prekey_n]
+            dh4 = dh_step2(p_ephemeral_key, one_time_prekey_used)
 
             # use KDF to get session key
             keys_str = str(dh1) +str(dh2) +str(dh3) +str(dh4)

@@ -1,5 +1,7 @@
 # flask will be used for the REST API
 import sqlite3
+import json
+from random import randrange
 
 
 
@@ -48,7 +50,23 @@ class server:
         args = (str(from_id))
         c.execute(sql, args)
         rows = c.fetchall()
-        return rows
+        #if empty rows(aka no keys registered) return empty array
+        if len(rows)==0:
+            #Faudra rajouter les checks pour dans le client
+            return json.dumps({})
+        else:
+            json_string = json.loads(rows[0][1])
+            p_one_time_prekeys = json_string["p_one_time_prekeys"]
+            # Si pas de prekeys restante
+            if p_one_time_prekeys == []:
+                p_one_time_prekey = None
+                p_one_time_prekey_n = None
+            else:
+                p_one_time_prekey_n = randrange(0,len(p_one_time_prekeys))
+                p_one_time_prekey = p_one_time_prekeys[p_one_time_prekey_n]
+            del json_string["p_one_time_prekeys"]
+            json_string.update({"p_one_time_prekey": p_one_time_prekey, "p_one_time_prekey_n": p_one_time_prekey_n})
+        return json.dumps(json_string)
 
     # the server needs to be able to store messages destined to an id
     def store_message(self, message, from_id, to_id):
