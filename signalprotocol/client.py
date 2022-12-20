@@ -63,12 +63,15 @@ class client:
         # TODO: add signature
         self.signed_prekey = randbits(self.key_size)
         # generate multiple keys
-        for i in range(0,self.number_otk):
-            self.one_time_prekeys.append(randbits(self.key_size))
+        self.generate_one_time_keys()
 
         # Create key bundle
         self.create_bundle()
         return
+
+    def generate_one_time_keys(self):
+        for i in range(0,self.number_otk):
+            self.one_time_prekeys.append(randbits(self.key_size))
 
 
     def send_key_bundle(self):
@@ -203,10 +206,17 @@ class client:
             p_one_time_prekey_n = json_message["p_one_time_prekey_n"]
             if p_one_time_prekey_n==None:
                 dh4 = bytearray()
+                # should generate more one time keys and send them to server
+                self.generate_one_time_keys()
+                self.create_bundle()
+                self.send_key_bundle()
             else:
                 one_time_prekey_used = self.one_time_prekeys[p_one_time_prekey_n]
                 dh4 = dh_step2(p_ephemeral_key, one_time_prekey_used)
                 # remove the one time prekey
+                # il y aura un problème avec ce système si un autre client demande un clé mais ne l'utilise finalement pas
+                # peut etre qu'il faudrai que la partie publique de DH de la one time key soit envoyé aussi
+                # comme ca on peut verifier que c'est bien la bonne clé qu'on utilise et qu'aucune erreur est survenu
                 del self.one_time_prekeys[p_one_time_prekey_n]
 
             # use KDF to get session key
@@ -315,6 +325,7 @@ if __name__ == "__main__":
     #print return code
     print(client1.send_message(to_id,message))
     print(client1.send_message(to_id,"Message 2"))
+    print(client1.send_message(to_id,"Message 3"))
 
 
     messages = client2.request_messages()
