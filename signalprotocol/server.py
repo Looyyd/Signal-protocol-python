@@ -58,7 +58,7 @@ class server:
             json_string = json.loads(rows[0][1])
             p_one_time_prekeys = json_string["p_one_time_prekeys"]
             # Si pas de prekeys restante
-            if p_one_time_prekeys == []:
+            if len(p_one_time_prekeys) == 0:
                 p_one_time_prekey = None
                 p_one_time_prekey_n = None
             else:

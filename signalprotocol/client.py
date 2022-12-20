@@ -109,8 +109,6 @@ class client:
         #TODO: verify signature
         p_signed_prekey = int(json_string["p_signed_prekey"], 16)
 
-        # take the prekey it gave us
-        p_one_time_prekey = int(json_string["p_one_time_prekey"], 16)
         # remember which key was used
         p_one_time_prekey_n = json_string["p_one_time_prekey_n"]
 
@@ -123,7 +121,13 @@ class client:
         dh3 = dh_step2(p_signed_prekey, ephemeral_key)
         # 4 If Bob still has a one-time prekey available, his one-time prekey and the ephem-
         # eral key of Alice
-        dh4 = dh_step2(p_one_time_prekey, ephemeral_key)
+        # dh4 optional
+        if (p_one_time_prekey_n != None):
+            # take the prekey it gave us
+            p_one_time_prekey = int(json_string["p_one_time_prekey"], 16)
+            dh4 = dh_step2(p_one_time_prekey, ephemeral_key)
+        else:
+            dh4 = bytearray()
 
         # use KDF to get session key
         keys_str = str(dh1) +str(dh2) +str(dh3) +str(dh4)
@@ -197,8 +201,11 @@ class client:
             # eral key of Alice
             # use the one time prekey that is indicated
             p_one_time_prekey_n = json_message["p_one_time_prekey_n"]
-            one_time_prekey_used = self.one_time_prekeys[p_one_time_prekey_n]
-            dh4 = dh_step2(p_ephemeral_key, one_time_prekey_used)
+            if p_one_time_prekey_n==None:
+                dh4 = bytearray()
+            else:
+                one_time_prekey_used = self.one_time_prekeys[p_one_time_prekey_n]
+                dh4 = dh_step2(p_ephemeral_key, one_time_prekey_used)
 
             # use KDF to get session key
             keys_str = str(dh1) +str(dh2) +str(dh3) +str(dh4)
