@@ -163,8 +163,8 @@ class client:
             # create session key
             session_key = self.create_session_key(keys_response, ephemeral_key)
             #  insert to db
-            sending_key =binascii.hexlify(bytearray(session_key))
-            receiving_key = binascii.hexlify(bytearray(session_key))
+            sending_key =binascii.hexlify(bytearray(session_key[0:AES_KEY_SIZE//8]))
+            receiving_key = binascii.hexlify(bytearray(session_key[AES_KEY_SIZE//8: 2*AES_KEY_SIZE//8]))
             self.update_sessions_keys_in_local_db(to_id, sending_key, receiving_key)
 
         else :
@@ -173,8 +173,14 @@ class client:
             sending_key =  bytearray(rows[0][1])
             receiving_key= bytearray(rows[0][2])
 
-            #we are sending
-            session_key = sending_key
+            #update keychain X3DH keychain for sending
+            chain_key = session_key_derivation(sending_key)
+            sending_key= chain_key[0:AES_KEY_SIZE//8]
+            #update chain value
+            self.update_sessions_keys_in_local_db(to_id,sending_key,receiving_key)
+
+            encryption_key = chain_key[AES_KEY_SIZE//8: 2* AES_KEY_SIZE//8]
+            session_key = encryption_key
 
         # counter mode encrypt the message with session key
         nonce = token_bytes(16)
@@ -261,8 +267,8 @@ class client:
                 keys_str = to_bytearray(keys_str)
                 session_key = session_key_derivation(keys_str)
                 # instert into local db
-                sending_key = binascii.hexlify(session_key)
-                receiving_key = binascii.hexlify(session_key)
+                receiving_key =binascii.hexlify(bytearray(session_key[0:AES_KEY_SIZE//8]))
+                sending_key = binascii.hexlify(bytearray(session_key[AES_KEY_SIZE//8: 2*AES_KEY_SIZE//8]))
                 self.update_sessions_keys_in_local_db(from_id, sending_key, receiving_key)
             else:
                 # if session key already exists
@@ -270,8 +276,14 @@ class client:
                 sending_key =  bytearray(rows[0][1])
                 receiving_key= bytearray(rows[0][2])
 
-                #we are receiving
-                session_key = receiving_key
+                #update keychain X3DH keychain for receiving
+                chain_key = session_key_derivation(receiving_key)
+                receiving_key= chain_key[0:AES_KEY_SIZE//8]
+                #update chain value
+                self.update_sessions_keys_in_local_db(from_id,sending_key,receiving_key)
+
+                encryption_key = chain_key[AES_KEY_SIZE//8: 2* AES_KEY_SIZE//8]
+                session_key = encryption_key
 
             aes_session_key = session_key[0:AES_KEY_SIZE//8]
             stream = counter_mode_aes(len(ciphertext) * 8 // 128 + 1, nonce, aes_session_key)
