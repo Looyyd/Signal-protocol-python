@@ -148,7 +148,7 @@ class client:
     def send_message(self, to_id, message):
         ### Encrypt message
         #Check if sessions key exists
-        rows = self.get_local_session_key_from_db(to_id)
+        rows = self.get_local_session_keys_from_db(to_id)
         print("ROWS = ", rows)
 
         if len(rows)==0:
@@ -241,7 +241,7 @@ class client:
             ciphertext = to_bytearray( bytearray.fromhex(json_message["ciphertext"]))
 
             # check if session_key_already exists
-            rows = self.get_local_session_key_from_db(from_id)
+            rows = self.get_local_session_keys_from_db(from_id)
             if (len(rows)==0):
                 # create the session key
                 p_identity_key =  int(json_message["p_identity_key"],16)
@@ -280,29 +280,29 @@ class client:
                 keys_str = to_bytearray(keys_str)
                 root_key = session_key_derivation(keys_str)
                 # instert into local db
-                receiving_key =binascii.hexlify(bytearray(root_key[0:AES_KEY_SIZE//8]))
+                receiving_key_chain =binascii.hexlify(bytearray(root_key[0:AES_KEY_SIZE//8]))
 
                 # update key chain
-                chain_key = session_key_derivation(receiving_key)
-                receiving_key= chain_key[0:AES_KEY_SIZE//8]
+                chain_key = session_key_derivation(receiving_key_chain)
+                receiving_key_chain= chain_key[0:AES_KEY_SIZE//8]
                 #update chain value
 
                 # we will us this key to encrypt
                 encryption_key = chain_key[AES_KEY_SIZE//8: 2* AES_KEY_SIZE//8]
 
-                sending_key = binascii.hexlify(bytearray(root_key[AES_KEY_SIZE//8: 2*AES_KEY_SIZE//8]))
-                self.update_sessions_keys_in_local_db(from_id, sending_key, receiving_key)
+                sending_key_chain = binascii.hexlify(bytearray(root_key[AES_KEY_SIZE//8: 2*AES_KEY_SIZE//8]))
+                self.update_sessions_keys_in_local_db(from_id, sending_key_chain, receiving_key_chain)
             else:
                 # if session key already exists
                 # split into 2
-                sending_key =  bytearray(rows[0][1])
-                receiving_key= bytearray(rows[0][2])
+                sending_key_chain =  bytearray(rows[0][1])
+                receiving_key_chain= bytearray(rows[0][2])
 
                 #update keychain X3DH keychain for receiving
-                chain_key = session_key_derivation(receiving_key)
-                receiving_key= chain_key[0:AES_KEY_SIZE//8]
+                chain_key = session_key_derivation(receiving_key_chain)
+                receiving_key_chain= chain_key[0:AES_KEY_SIZE//8]
                 #update chain value
-                self.update_sessions_keys_in_local_db(from_id,sending_key,receiving_key)
+                self.update_sessions_keys_in_local_db(from_id,sending_key_chain,receiving_key_chain)
 
                 encryption_key = chain_key[AES_KEY_SIZE//8: 2* AES_KEY_SIZE//8]
 
@@ -333,7 +333,7 @@ class client:
         return
 
     #returns row of database corresponding to form_id, returns empty row if not in db
-    def get_local_session_key_from_db(self, from_id):
+    def get_local_session_keys_from_db(self, from_id):
         print("GETTING key with id", from_id )
         #create if doesn't exist
         self.create_local_db()
@@ -450,6 +450,7 @@ if __name__ == "__main__":
     print("READING ALL LOCAL FROM ID= 2")
     client2.read_local_messages_from(2)
 
+    # Testing message in the other direction, it should reuse the already established key chain
     to_id=1
     client2.send_message(to_id,"Message other direction")
     print("READIN ALL MESSSAGES")
