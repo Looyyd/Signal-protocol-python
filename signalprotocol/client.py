@@ -7,6 +7,7 @@ from crypto.hkdf import *
 from crypto.counter_mode import *
 from crypto.bytearray_operations import *
 import sqlite3
+import binascii
 
 
 # This package contains the functions needed by a signal client
@@ -32,6 +33,8 @@ class client:
         #id should be an unique identifier, TODO to be determined exactly how it looks
         self.id = id
         self.db_name = "client-" + str(self.id) + ".db"
+        # create local db at init
+        self.create_local_db()
 
     #The client needs to be able to register to the server, ie send their key bundle to the server
     def register(self):
@@ -143,12 +146,29 @@ class client:
     #The client needs to be able to send a message to an id
     def send_message(self, to_id, message):
         ### Encrypt message
-        # get key bundle of destination
-        keys_response = self.get_key_bundle(to_id)
-        # create ephemeral key
-        ephemeral_key = randbits(self.key_size)
-        # create session key
-        session_key = self.create_session_key(keys_response, ephemeral_key)
+        #Check if sessions key exists
+        rows = self.get_local_session_key_from_db(to_id)
+
+        if len(rows)==0:
+            no_session_key = True
+        else:
+            no_session_key = False
+        # if no session key already
+        if no_session_key:
+            # get key bundle of destination
+            keys_response = self.get_key_bundle(to_id)
+            # create ephemeral key
+            ephemeral_key = randbits(self.key_size)
+            # create session key
+            session_key = self.create_session_key(keys_response, ephemeral_key)
+            #  insert to db
+            self.update_sessions_keys_in_local_db(to_id, binascii.hexlify(bytearray(session_key)), "")
+
+        else :
+            #if there is a session key already
+            # TODO split into 2
+            sending_key = rows[0][1]
+            session_key =  bytearray(rows[0][1])
 
         # counter mode encrypt the message with session key
         nonce = token_bytes(16)
@@ -160,18 +180,24 @@ class client:
         # stream cipher
         encrypted = xor(message, stream)
 
-        # ephermeral public key generation
-        p_ephemeral_key = dh_step1(ephemeral_key)
-        p_identity_key = dh_step1(self.identity_key)
-        # add the index of the one time key that was used
-        json_string=json.loads(keys_response)
-        p_one_time_prekey_n = json_string["p_one_time_prekey_n"]
+        if no_session_key:
+            # ephermeral public key generation
+            p_ephemeral_key = dh_step1(ephemeral_key)
+            p_identity_key = dh_step1(self.identity_key)
+            # add the index of the one time key that was used
+            json_string=json.loads(keys_response)
+            p_one_time_prekey_n = json_string["p_one_time_prekey_n"]
 
-        message_json = {"p_identity_key": hex(p_identity_key),
-                        "p_ephemeral_key": hex(p_ephemeral_key),
-                        "nonce": nonce.hex(),
-                        "p_one_time_prekey_n": p_one_time_prekey_n,
-                        "ciphertext": encrypted.hex()}
+            message_json = {"p_identity_key": hex(p_identity_key),
+                            "p_ephemeral_key": hex(p_ephemeral_key),
+                            "nonce": nonce.hex(),
+                            "p_one_time_prekey_n": p_one_time_prekey_n,
+                            "ciphertext": encrypted.hex()}
+        else:
+            #there is a session key already
+            message_json={"nonce": nonce.hex(),
+                          "ciphertext": encrypted.hex()
+            }
 
         #api endpoint is:
         url = "http://" + self.server_ip + ":" + str(self.server_port) + "/message"
@@ -184,45 +210,56 @@ class client:
 
     def read_messages(self,messages):
         for msg in messages:
-            print(msg)
             from_id = msg[1]
             txt = msg[3]
             json_message = json.loads(txt)
-            print(json_message)
-            p_identity_key =  int(json_message["p_identity_key"],16)
-            p_ephemeral_key =  int(json_message["p_ephemeral_key"],16)
             nonce = to_bytearray( bytearray.fromhex(json_message["nonce"]))
             ciphertext = to_bytearray( bytearray.fromhex(json_message["ciphertext"]))
-            # Now to the 3 (optionnaly 4 if one time prekey is used) key exchanges
-            # 1 The identity key of Alice and the signed prekey of Bob
-            dh1 = dh_step2(p_identity_key, self.signed_prekey)
-            # 2 The ephemeral key of Alice and the identity key of Bob
-            dh2 = dh_step2(p_ephemeral_key, self.identity_key)
-            # 3 The ephemeral key of Alice and the signed prekey of Bob
-            dh3 = dh_step2(p_ephemeral_key, self.signed_prekey)
-            # 4 If Bob still has a one-time prekey available, his one-time prekey and the ephem-
-            # eral key of Alice
-            # use the one time prekey that is indicated
-            p_one_time_prekey_n = json_message["p_one_time_prekey_n"]
-            if p_one_time_prekey_n==None:
-                dh4 = bytearray()
-                # should generate more one time keys and send them to server
-                self.generate_one_time_keys()
-                self.create_bundle()
-                self.send_key_bundle()
-            else:
-                one_time_prekey_used = self.one_time_prekeys[p_one_time_prekey_n]
-                dh4 = dh_step2(p_ephemeral_key, one_time_prekey_used)
-                # remove the one time prekey
-                # il y aura un problème avec ce système si un autre client demande un clé mais ne l'utilise finalement pas
-                # peut etre qu'il faudrai que la partie publique de DH de la one time key soit envoyé aussi
-                # comme ca on peut verifier que c'est bien la bonne clé qu'on utilise et qu'aucune erreur est survenu
-                del self.one_time_prekeys[p_one_time_prekey_n]
 
-            # use KDF to get session key
-            keys_str = str(dh1) +str(dh2) +str(dh3) +str(dh4)
-            keys_str = to_bytearray(keys_str)
-            session_key = session_key_derivation(keys_str)
+            # check if session_key_already exists
+            rows = self.get_local_session_key_from_db(from_id)
+            if (len(rows)==0):
+                # create the session key
+                p_identity_key =  int(json_message["p_identity_key"],16)
+                p_ephemeral_key =  int(json_message["p_ephemeral_key"],16)
+                # Now to the 3 (optionnaly 4 if one time prekey is used) key exchanges
+                # 1 The identity key of Alice and the signed prekey of Bob
+                dh1 = dh_step2(p_identity_key, self.signed_prekey)
+                # 2 The ephemeral key of Alice and the identity key of Bob
+                dh2 = dh_step2(p_ephemeral_key, self.identity_key)
+                # 3 The ephemeral key of Alice and the signed prekey of Bob
+                dh3 = dh_step2(p_ephemeral_key, self.signed_prekey)
+                # 4 If Bob still has a one-time prekey available, his one-time prekey and the ephem-
+                # eral key of Alice
+                # use the one time prekey that is indicated
+                p_one_time_prekey_n = json_message["p_one_time_prekey_n"]
+                if p_one_time_prekey_n==None:
+                    dh4 = bytearray()
+                    # should generate more one time keys and send them to server
+                    self.generate_one_time_keys()
+                    self.create_bundle()
+                    self.send_key_bundle()
+                else:
+                    one_time_prekey_used = self.one_time_prekeys[p_one_time_prekey_n]
+                    dh4 = dh_step2(p_ephemeral_key, one_time_prekey_used)
+                    # remove the one time prekey
+                    # il y aura un problème avec ce système si un autre client demande un clé mais ne l'utilise finalement pas
+                    # peut etre qu'il faudrai que la partie publique de DH de la one time key soit envoyé aussi
+                    # comme ca on peut verifier que c'est bien la bonne clé qu'on utilise et qu'aucune erreur est survenu
+                    del self.one_time_prekeys[p_one_time_prekey_n]
+
+                # use KDF to get session key
+                keys_str = str(dh1) +str(dh2) +str(dh3) +str(dh4)
+                keys_str = to_bytearray(keys_str)
+                session_key = session_key_derivation(keys_str)
+                # instert into local db
+                self.update_sessions_keys_in_local_db(from_id, binascii.hexlify(session_key), "")
+            else:
+                # if session key already exists
+                #if there is a session key already
+                # TODO split into 2
+                session_key =  bytearray(rows[0][1])
+
             aes_session_key = session_key[0:AES_KEY_SIZE//8]
             stream = counter_mode_aes(len(ciphertext) * 8 // 128 + 1, nonce, aes_session_key)
             # message needs to be a bytearray
@@ -249,6 +286,30 @@ class client:
         conn.commit()
         return
 
+    #returns row of database corresponding to form_id, returns empty row if not in db
+    def get_local_session_key_from_db(self, from_id):
+        #create if doesn't exist
+        self.create_local_db()
+        # print all messages from local database
+        conn = sqlite3.connect(self.db_name)
+        c = conn.cursor()
+
+        sql = "SELECT * FROM session_keys WHERE id=(?)"
+        args = (from_id,)
+        c.execute(sql, args)
+
+        rows = c.fetchall()
+        return rows
+
+    def update_sessions_keys_in_local_db(self, from_id, sending_key, receiving_key):
+        conn = sqlite3.connect(self.db_name)
+        c = conn.cursor()
+        #update aka insert or replace
+        sql = "INSERT OR REPLACE INTO session_keys (id, sending_key, receiving_key) VALUES(?,?,?)"
+        args = (from_id, sending_key, receiving_key)
+        c.execute(sql,args)
+        conn.commit()
+
     def create_local_db(self):
         conn = sqlite3.connect(self.db_name)
         c = conn.cursor()
@@ -256,6 +317,12 @@ class client:
                           CREATE TABLE IF NOT EXISTS messages
                           ([message_id] INTEGER PRIMARY KEY, [from_id] INTEGER, [message] TEXT)
                           ''')
+        # table of session keys
+        c.execute('''
+                          CREATE TABLE IF NOT EXISTS session_keys
+                          ([id] INTEGER PRIMARY KEY, [sending_key] TEXT, [receiving_key] TEXT)
+                          ''')
+        conn.commit()
         return
 
 
