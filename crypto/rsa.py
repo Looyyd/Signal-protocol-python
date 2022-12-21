@@ -1,6 +1,7 @@
 # This file is entirely dedicated to cryptographic operations linked to RSA
 import numpy
 import random
+import time
 
 # Basic encryptio/decryption functions
 
@@ -21,7 +22,7 @@ def decrypt(ciphermessage: int, pub_key: int, mod: int)-> int:
 
 def large_prime_number():
     #Generating a 2048 bits long number
-    p = random.randrange(2**(512-1)+1, 2**512-1)
+    p = random.randrange(2**(2048-1)+1, 2**2048-1)
     return p
 
 def test_primality(n):
@@ -58,12 +59,19 @@ def test_primality(n):
     return True
 
 #Euclide and Extanded Euclide tests will be necessary to generate keys
-def pgcd(m, n):
+#TODO Optimize recursive pgcd might get better results than iterative method. For now pgcd works, not rec_pgcd
+def rec_pgcd(m, n):
     if n == 0:
         return m
     else:
         r = m % n
-        return pgcd(n, r)
+        return rec_pgcd(n, r)
+
+def pgcd(m, n):
+    while m:
+        m,n = n%m,m
+    return n
+
 
 def inv_mod(e,n):
     r0, u0, v0 = e, 1, 0
@@ -102,12 +110,29 @@ def generate_keys():
 
     return pub_key, priv_key, n
 
-(pub, priv, mod) = generate_keys()
-m = 10
-c = encrypt(m, priv, mod)
-n = decrypt(c, pub, mod)
-print("Message", n)
-print("---------------------------------------------------------------------------------------------")
-print("Public Key", pub)
-print("---------------------------------------------------------------------------------------------")
-print("Private Key",priv)
+
+exe_time = []
+moy_el_time = 0
+for i in range (1000):    
+    start_time = time.time()
+    (pub, priv, mod) = generate_keys()
+    m = 10
+    c = encrypt(m, priv, mod)
+    n = decrypt(c, pub, mod)
+    print("Message", n)
+    print("---------------------------------------------------------------------------------------------")
+    print("Public Key", pub)
+    print("---------------------------------------------------------------------------------------------")
+    print("Private Key",priv)
+    elapsed_time = time.time() - start_time
+    print("---------------------------------------------------------------------------------------------")
+    print("Elapsed time during execution : ", elapsed_time)
+    print("---------------------------------------------------------------------------------------------")
+    print(i)
+
+    exe_time.append(elapsed_time)
+    moy_el_time = moy_el_time + exe_time[i]
+
+moy_el_time //= 1000
+print("Mean execution time : ", moy_el_time)
+
