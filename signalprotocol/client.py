@@ -18,19 +18,20 @@ class client:
     # for now server will be on same host
     server_ip = "127.0.0.1"
     server_port = 5000
-    # TODO: not sure about key size, probably higher since it's DH
-    key_size = 256
+    # key_size of DH key exchange
+    dh_key_size = 2048
     identity_key = None
     signed_prekey = None
+    # TODO: add signature
     prekey_signature = None
     one_time_prekeys = []
     key_bundle = None
-    #generate 10 otk
+    #number of one time keys generated
     number_otk = 1
 
     db_name = None
     def __init__(self, id):
-        #id should be an unique identifier, TODO to be determined exactly how it looks
+        #id should be an unique identifier
         self.id = id
         self.db_name = "client-" + str(self.id) + ".db"
         # create local db at init
@@ -62,9 +63,9 @@ class client:
         # one signed prekey and it's signature
         # A defined number of prekeys
 
-        self.identity_key = randbits(self.key_size)
+        self.identity_key = randbits(self.dh_key_size)
         # TODO: add signature
-        self.signed_prekey = randbits(self.key_size)
+        self.signed_prekey = randbits(self.dh_key_size)
         # generate multiple keys
         self.generate_one_time_keys()
 
@@ -74,7 +75,7 @@ class client:
 
     def generate_one_time_keys(self):
         for i in range(0,self.number_otk):
-            self.one_time_prekeys.append(randbits(self.key_size))
+            self.one_time_prekeys.append(randbits(self.dh_key_size))
 
 
     def send_key_bundle(self):
@@ -105,7 +106,7 @@ class client:
         #not sure what to return for now
         return jsonString
 
-    def create_session_key(self, keys_response, ephemeral_key):
+    def create_root_key_when_sending(self, keys_response, ephemeral_key):
         # parse the response for keys
         #row array then second column
         print("keys_response:", keys_response)
@@ -159,17 +160,27 @@ class client:
             # get key bundle of destination
             keys_response = self.get_key_bundle(to_id)
             # create ephemeral key
-            ephemeral_key = randbits(self.key_size)
+            ephemeral_key = randbits(self.dh_key_size)
             # create session key
-            session_key = self.create_session_key(keys_response, ephemeral_key)
+            session_key = self.create_root_key_when_sending(keys_response, ephemeral_key)
             #  insert to db
             sending_key =binascii.hexlify(bytearray(session_key[0:AES_KEY_SIZE//8]))
             receiving_key = binascii.hexlify(bytearray(session_key[AES_KEY_SIZE//8: 2*AES_KEY_SIZE//8]))
+
+            # sending key derivation
+            chain_key = session_key_derivation(sending_key)
+            sending_key= chain_key[0:AES_KEY_SIZE//8]
+            #update chain value
+
+            # we will us this key to encrypt
+            encryption_key = chain_key[AES_KEY_SIZE//8: 2* AES_KEY_SIZE//8]
+            session_key = encryption_key
+
             self.update_sessions_keys_in_local_db(to_id, sending_key, receiving_key)
 
         else :
             #if there is a session key already
-            # TODO split into 2
+            #  split into 2
             sending_key =  bytearray(rows[0][1])
             receiving_key= bytearray(rows[0][2])
 
@@ -180,12 +191,11 @@ class client:
             self.update_sessions_keys_in_local_db(to_id,sending_key,receiving_key)
 
             encryption_key = chain_key[AES_KEY_SIZE//8: 2* AES_KEY_SIZE//8]
-            session_key = encryption_key
 
         # counter mode encrypt the message with session key
         nonce = token_bytes(16)
         # session key is 512 bits, take half of it
-        aes_session_key = session_key[0:AES_KEY_SIZE//8]
+        aes_session_key = encryption_key[0:AES_KEY_SIZE//8]
         stream = counter_mode_aes(len(message) * 8 // 128 + 1, nonce, aes_session_key)
         # message needs to be a bytearray
         message = to_bytearray(message)
@@ -247,9 +257,12 @@ class client:
                 # eral key of Alice
                 # use the one time prekey that is indicated
                 p_one_time_prekey_n = json_message["p_one_time_prekey_n"]
+
+                # last key is optional
                 if p_one_time_prekey_n==None:
+                    # if key isn't there, add nothing to dh4
                     dh4 = bytearray()
-                    # should generate more one time keys and send them to server
+                    # generate more one time keys and send them to server
                     self.generate_one_time_keys()
                     self.create_bundle()
                     self.send_key_bundle()
@@ -265,14 +278,23 @@ class client:
                 # use KDF to get session key
                 keys_str = str(dh1) +str(dh2) +str(dh3) +str(dh4)
                 keys_str = to_bytearray(keys_str)
-                session_key = session_key_derivation(keys_str)
+                root_key = session_key_derivation(keys_str)
                 # instert into local db
-                receiving_key =binascii.hexlify(bytearray(session_key[0:AES_KEY_SIZE//8]))
-                sending_key = binascii.hexlify(bytearray(session_key[AES_KEY_SIZE//8: 2*AES_KEY_SIZE//8]))
+                receiving_key =binascii.hexlify(bytearray(root_key[0:AES_KEY_SIZE//8]))
+
+                # update key chain
+                chain_key = session_key_derivation(receiving_key)
+                receiving_key= chain_key[0:AES_KEY_SIZE//8]
+                #update chain value
+
+                # we will us this key to encrypt
+                encryption_key = chain_key[AES_KEY_SIZE//8: 2* AES_KEY_SIZE//8]
+
+                sending_key = binascii.hexlify(bytearray(root_key[AES_KEY_SIZE//8: 2*AES_KEY_SIZE//8]))
                 self.update_sessions_keys_in_local_db(from_id, sending_key, receiving_key)
             else:
                 # if session key already exists
-                # TODO split into 2
+                # split into 2
                 sending_key =  bytearray(rows[0][1])
                 receiving_key= bytearray(rows[0][2])
 
@@ -283,9 +305,8 @@ class client:
                 self.update_sessions_keys_in_local_db(from_id,sending_key,receiving_key)
 
                 encryption_key = chain_key[AES_KEY_SIZE//8: 2* AES_KEY_SIZE//8]
-                session_key = encryption_key
 
-            aes_session_key = session_key[0:AES_KEY_SIZE//8]
+            aes_session_key = encryption_key
             stream = counter_mode_aes(len(ciphertext) * 8 // 128 + 1, nonce, aes_session_key)
             # message needs to be a bytearray
             ciphertext = to_bytearray(ciphertext)
@@ -327,13 +348,13 @@ class client:
         rows = c.fetchall()
         return rows
 
-    def update_sessions_keys_in_local_db(self, from_id, sending_key, receiving_key):
-        print("UPDATING key with id", from_id )
+    def update_sessions_keys_in_local_db(self, id, sending_key_chain, receiving_key_chain):
+        print("UPDATING key with id", id )
         conn = sqlite3.connect(self.db_name)
         c = conn.cursor()
         #update aka insert or replace
         sql = "INSERT OR REPLACE INTO session_keys (id, sending_key, receiving_key) VALUES(?,?,?)"
-        args = (from_id, sending_key, receiving_key)
+        args = (id, sending_key_chain, receiving_key_chain)
         c.execute(sql,args)
         conn.commit()
 
@@ -366,7 +387,7 @@ class client:
 
         rows = c.fetchall()
         for row in rows:
-            # 1 is row id
+            # index 0 is row id
             from_id = row[1]
             message = row[2]
             print("Message from ", from_id, ": ", message)
