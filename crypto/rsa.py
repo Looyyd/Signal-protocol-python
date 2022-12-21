@@ -3,6 +3,13 @@ import numpy
 import random
 import time
 
+# ca voulait pas import sans le path
+import os, sys
+sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
+
+from crypto import first_10000_primes
+
+
 # Basic encryptio/decryption functions
 
 def encrypt(message: int, priv_key: int, mod: int)-> int:
@@ -20,9 +27,16 @@ def decrypt(ciphermessage: int, pub_key: int, mod: int)-> int:
 # S3 : create public key (must not be a factor of E(n)) pubkey
 # S4 : create private key = pubkey^-1
 
-def large_prime_number():
+def large_number():
     #Generating a 2048 bits long number
     p = random.randrange(2**(2048-1)+1, 2**2048-1)
+    return p
+
+def large_prime_number():
+    isPrime = False
+    while isPrime == False:
+        p = large_number()
+        isPrime = test_primality(p)
     return p
 
 def test_primality(n):
@@ -30,11 +44,12 @@ def test_primality(n):
     #We will use 20 rounds of Rabin-Miller test
     
     #A list of the first primes to test our number
-    #TODO Keeping first prime test or direct Rabin-Miller ?
-    small_primes_list = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131, 137, 139, 149, 151, 157, 163, 167, 173, 179, 181, 191, 193, 197, 199, 211, 223, 227, 229, 233, 239, 241, 251, 257, 263, 269, 271, 277, 281, 283, 293, 307, 311, 313, 317, 331, 337, 347, 349]
+    #Keeping first prime test or direct Rabin-Miller -> keep because it's faster
+    #small_primes_list = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131, 137, 139, 149, 151, 157, 163, 167, 173, 179, 181, 191, 193, 197, 199, 211, 223, 227, 229, 233, 239, 241, 251, 257, 263, 269, 271, 277, 281, 283, 293, 307, 311, 313, 317, 331, 337, 347, 349]
+    small_primes_list = first_10000_primes.primes
     
     #Test first prime
-    if n < 2: 
+    if n < 2:
         return False
     for p in small_primes_list:
         if n < p * p: return True
@@ -89,50 +104,51 @@ def inv_mod(e,n):
 # This function generates public and associated private keys
 def generate_keys():
 
+    print("generating primes")
     p = large_prime_number()
-    while test_primality(p) == False :
-        p = large_prime_number()
     q = large_prime_number()
-    if p == q :
-        while p == q :
-            q = large_prime_number()
-    while test_primality(q) == False :
-        q = large_prime_number()
+    while p == q :
+        q=large_number()
 
+    print("calculating")
     n = p*q
     ind_n = (p-1)*(q-1)
 
-    pub_key = random.randint(2, ind_n)
+    pub_key = random.randrange(3, ind_n, 2)
     while pgcd(pub_key, ind_n) != 1:
-        pub_key = random.randint(2, ind_n)
-    
-    priv_key = inv_mod(pub_key, ind_n)
+        # last parameter give step 2 to function, that way it only gives odd numbers
+        pub_key = random.randrange(3, ind_n, 2)
+
+    #priv_key = inv_mod(pub_key, ind_n)
+    priv_key = pow(pub_key,-1,ind_n)
 
     return pub_key, priv_key, n
 
 
-exe_time = []
-moy_el_time = 0
-for i in range (1000):    
-    start_time = time.time()
-    (pub, priv, mod) = generate_keys()
-    m = 10
-    c = encrypt(m, priv, mod)
-    n = decrypt(c, pub, mod)
-    print("Message", n)
-    print("---------------------------------------------------------------------------------------------")
-    print("Public Key", pub)
-    print("---------------------------------------------------------------------------------------------")
-    print("Private Key",priv)
-    elapsed_time = time.time() - start_time
-    print("---------------------------------------------------------------------------------------------")
-    print("Elapsed time during execution : ", elapsed_time)
-    print("---------------------------------------------------------------------------------------------")
-    print(i)
 
-    exe_time.append(elapsed_time)
-    moy_el_time = moy_el_time + exe_time[i]
+if __name__ == "__main__":
+    exe_time = []
+    moy_el_time = 0
+    for i in range (1000):
+        start_time = time.time()
+        (pub, priv, mod) = generate_keys()
+        m = 10
+        c = encrypt(m, priv, mod)
+        n = decrypt(c, pub, mod)
+        print("Message", n)
+        print("---------------------------------------------------------------------------------------------")
+        print("Public Key", pub)
+        print("---------------------------------------------------------------------------------------------")
+        print("Private Key",priv)
+        elapsed_time = time.time() - start_time
+        print("---------------------------------------------------------------------------------------------")
+        print("Elapsed time during execution : ", elapsed_time)
+        print("---------------------------------------------------------------------------------------------")
+        print(i)
 
-moy_el_time //= 1000
-print("Mean execution time : ", moy_el_time)
+        exe_time.append(elapsed_time)
+        moy_el_time = moy_el_time + exe_time[i]
+
+    moy_el_time //= 1000
+    print("Mean execution time : ", moy_el_time)
 
