@@ -47,6 +47,9 @@ def test_primality(n):
     #Keeping first prime test or direct Rabin-Miller -> keep because it's faster
     #small_primes_list = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131, 137, 139, 149, 151, 157, 163, 167, 173, 179, 181, 191, 193, 197, 199, 211, 223, 227, 229, 233, 239, 241, 251, 257, 263, 269, 271, 277, 281, 283, 293, 307, 311, 313, 317, 331, 337, 347, 349]
     small_primes_list = first_10000_primes.primes
+
+    # TODO: change later to more ?
+    n_rounds = 6
     
     #Test first prime
     if n < 2:
@@ -60,7 +63,7 @@ def test_primality(n):
     while s % 2 == 0:
         r += 1
         s //= 2
-    for _ in range(20):
+    for _ in range(n_rounds):
         a = random.randrange(2, n - 1)
         x = pow(a, s, n)
         if x == 1 or x == n - 1:
