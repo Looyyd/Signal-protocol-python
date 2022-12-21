@@ -27,15 +27,15 @@ def decrypt(ciphermessage: int, pub_key: int, mod: int)-> int:
 # S3 : create public key (must not be a factor of E(n)) pubkey
 # S4 : create private key = pubkey^-1
 
-def large_number():
+def large_odd_number():
     #Generating a 2048 bits long number
-    p = random.randrange(2**(2048-1)+1, 2**2048-1)
+    p = random.randrange(2**(2048-1)+1, 2**2048-1, 2)
     return p
 
 def large_prime_number():
     isPrime = False
     while isPrime == False:
-        p = large_number()
+        p = large_odd_number()
         isPrime = test_primality(p)
     return p
 
@@ -114,10 +114,10 @@ def generate_keys():
     n = p*q
     ind_n = (p-1)*(q-1)
 
-    pub_key = random.randrange(3, ind_n, 2)
+    pub_key = random.randrange(2, ind_n, 1)
     while pgcd(pub_key, ind_n) != 1:
         # last parameter give step 2 to function, that way it only gives odd numbers
-        pub_key = random.randrange(3, ind_n, 2)
+        pub_key = random.randrange(2, ind_n, 1)
 
     #priv_key = inv_mod(pub_key, ind_n)
     priv_key = pow(pub_key,-1,ind_n)
