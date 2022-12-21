@@ -148,6 +148,7 @@ class client:
         ### Encrypt message
         #Check if sessions key exists
         rows = self.get_local_session_key_from_db(to_id)
+        print("ROWS = ", rows)
 
         if len(rows)==0:
             no_session_key = True
@@ -162,13 +163,18 @@ class client:
             # create session key
             session_key = self.create_session_key(keys_response, ephemeral_key)
             #  insert to db
-            self.update_sessions_keys_in_local_db(to_id, binascii.hexlify(bytearray(session_key)), "")
+            sending_key =binascii.hexlify(bytearray(session_key))
+            receiving_key = binascii.hexlify(bytearray(session_key))
+            self.update_sessions_keys_in_local_db(to_id, sending_key, receiving_key)
 
         else :
             #if there is a session key already
             # TODO split into 2
-            sending_key = rows[0][1]
-            session_key =  bytearray(rows[0][1])
+            sending_key =  bytearray(rows[0][1])
+            receiving_key= bytearray(rows[0][2])
+
+            #we are sending
+            session_key = sending_key
 
         # counter mode encrypt the message with session key
         nonce = token_bytes(16)
@@ -210,7 +216,9 @@ class client:
 
     def read_messages(self,messages):
         for msg in messages:
-            from_id = msg[1]
+            from_id = msg[2]
+            print("WHILE READING from id is:", from_id)
+            print("MESSAGE IS:", msg)
             txt = msg[3]
             json_message = json.loads(txt)
             nonce = to_bytearray( bytearray.fromhex(json_message["nonce"]))
@@ -253,12 +261,17 @@ class client:
                 keys_str = to_bytearray(keys_str)
                 session_key = session_key_derivation(keys_str)
                 # instert into local db
-                self.update_sessions_keys_in_local_db(from_id, binascii.hexlify(session_key), "")
+                sending_key = binascii.hexlify(session_key)
+                receiving_key = binascii.hexlify(session_key)
+                self.update_sessions_keys_in_local_db(from_id, sending_key, receiving_key)
             else:
                 # if session key already exists
-                #if there is a session key already
                 # TODO split into 2
-                session_key =  bytearray(rows[0][1])
+                sending_key =  bytearray(rows[0][1])
+                receiving_key= bytearray(rows[0][2])
+
+                #we are receiving
+                session_key = receiving_key
 
             aes_session_key = session_key[0:AES_KEY_SIZE//8]
             stream = counter_mode_aes(len(ciphertext) * 8 // 128 + 1, nonce, aes_session_key)
@@ -288,6 +301,7 @@ class client:
 
     #returns row of database corresponding to form_id, returns empty row if not in db
     def get_local_session_key_from_db(self, from_id):
+        print("GETTING key with id", from_id )
         #create if doesn't exist
         self.create_local_db()
         # print all messages from local database
@@ -302,6 +316,7 @@ class client:
         return rows
 
     def update_sessions_keys_in_local_db(self, from_id, sending_key, receiving_key):
+        print("UPDATING key with id", from_id )
         conn = sqlite3.connect(self.db_name)
         c = conn.cursor()
         #update aka insert or replace
@@ -387,19 +402,25 @@ if __name__ == "__main__":
     message = "Test message"
     client1.register()
     keys_response = client1.get_key_bundle(client1.id)
-    print(keys_response)
     to_id = 2
     #print return code
-    print(client1.send_message(to_id,message))
-    print(client1.send_message(to_id,"Message 2"))
-    print(client1.send_message(to_id,"Message 3"))
+    client1.send_message(to_id,message)
+    client1.send_message(to_id,"Message 2")
+    client1.send_message(to_id,"Message 3")
 
 
     messages = client2.request_messages()
-    print(messages)
     client2.read_messages(messages)
 
     print("READIN ALL MESSSAGES")
     client2.read_all_local_message()
     print("READING ALL LOCAL FROM ID= 2")
     client2.read_local_messages_from(2)
+
+    to_id=1
+    client2.send_message(to_id,"Message other direction")
+    print("READIN ALL MESSSAGES")
+    messages = client1.request_messages()
+    client1.read_messages(messages)
+
+
