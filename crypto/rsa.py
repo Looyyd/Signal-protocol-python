@@ -108,7 +108,7 @@ def generate_keys():
     p = large_prime_number()
     q = large_prime_number()
     while p == q :
-        q=large_number()
+        q=large_prime_number()
 
     print("calculating")
     n = p*q
