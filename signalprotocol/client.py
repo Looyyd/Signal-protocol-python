@@ -157,7 +157,7 @@ class client:
         return row[0][1], row[0][2],  row[0][3], row[0][4], row[0][5],  row[0][6]
 
     #The client needs to be able to send a message to an id
-    def send_message(self, to_id, message):
+    def send_message(self, to_id, message, update_ratchet_key=False):
         ### Encrypt message
         #Check if sessions key exists
         rows = self.get_local_session_keys_from_db(to_id)
@@ -206,10 +206,36 @@ class client:
             sending_key_chain, receiving_key_chain, root_key_chain,\
                 p_ratchet_key, my_ratchet_key, expecting_new_ratchet= self.table_row_to_key_chains(rows)
 
-            #if sending key chain empty
-            if len(sending_key_chain) == 0:
+            print("ROWS WHEN SENDING")
+            print(rows)
+            if len(sending_key_chain) == 0 or update_ratchet_key==True:
+                # we need to generate new key chains
+                # because we received somthing using our presigned key only
+                # OR BECAUSE we just want to update the ratchet key
+
                 # 1 KDF with root key to create the chain
-                root_key_chain, sending_key_chain = chain_keys_kdf(root_key_chain)
+                my_ratchet_key = self.generate_ratchet_key()
+                ratchet_DH = dh_step2(int(p_ratchet_key, 16), int(my_ratchet_key, 16))
+                # update the root key chain with the new ratchet
+                kdf_input = root_key_chain + to_bytearray(hex(ratchet_DH))
+                # update sending key chain first
+                root_key_chain, sending_key_chain = chain_keys_kdf(kdf_input)
+                # update receiving key chain second
+                kdf_input = root_key_chain + to_bytearray(hex(ratchet_DH))
+                root_key_chain, receiving_key_chain = chain_keys_kdf(kdf_input)
+
+            ## generate new ratchet if asked
+            #if update_ratchet_key == True:
+                ## 1 KDF with root key to create the chain
+                #my_ratchet_key = self.generate_ratchet_key()
+                #ratchet_DH = dh_step2(p_ratchet_key,my_ratchet_key)
+                ## update the root key chain with the new ratchet
+                #kdf_input = root_key_chain + to_bytearray(hex(ratchet_DH))
+                ## update sending key chain first
+                #root_key_chain, sending_key_chain = chain_keys_kdf(kdf_input)
+                ## update receiving key chain second
+                #kdf_input = root_key_chain + to_bytearray(hex(ratchet_DH))
+                #root_key_chain, receiving_key_chain = chain_keys_kdf(kdf_input)
 
 
             # 1 KDF to get the encryption key for this message
@@ -242,11 +268,13 @@ class client:
                             "nonce": nonce.hex(),
                             "p_one_time_prekey_n": p_one_time_prekey_n,
                             "ciphertext": encrypted.hex(),
-                            "p_ratchet_key": hex(dh_step1(int(my_ratchet_key,16)))}
+                            "p_ratchet_key": hex(dh_step1(int(my_ratchet_key,16)))
+                            }
         else:
             #there is a session key already
             message_json={"nonce": nonce.hex(),
-                          "ciphertext": encrypted.hex()
+                          "ciphertext": encrypted.hex(),
+                          "p_ratchet_key": hex(dh_step1(int(my_ratchet_key,16)))
             }
 
         #api endpoint is:
@@ -268,12 +296,13 @@ class client:
             nonce = to_bytearray( bytearray.fromhex(json_message["nonce"]))
             ciphertext = to_bytearray( bytearray.fromhex(json_message["ciphertext"]))
 
+            # TODO : delete this it's useless in the end
+            expecting_ratchet = False
             # check if session_key_already exists
             rows = self.get_local_session_keys_from_db(from_id)
+            print(rows)
             if (len(rows)==0):
                 # create the key chains
-                # we don't expect ratchet at first
-                expecting_ratchet = False
 
                 p_ratchet_key =  json_message["p_ratchet_key"]
                 # generate our own ratchet key
@@ -333,11 +362,32 @@ class client:
             else:
                 # if key chains exist already
                 sending_key_chain, receiving_key_chain, root_key_chain,\
-                    p_ratchet_key, my_ratchet_key, expecting_ratchet= self.table_row_to_key_chains(rows)
+                    p_ratchet_key_memory, my_ratchet_key, expecting_ratchet= self.table_row_to_key_chains(rows)
 
-                if len(receiving_key_chain) == 0:
-                    #create key chain with root key
-                    root_key_chain, receiving_key_chain = chain_keys_kdf(root_key_chain)
+
+                p_ratchet_key = json_message["p_ratchet_key"]
+
+                print("Ratchet in memory :", p_ratchet_key_memory)
+                print("Ratchet received : ", p_ratchet_key)
+
+                # check if ratchet  key has change
+                if (p_ratchet_key != p_ratchet_key_memory):
+                    print("RATCHET KEY HAS CHANGED")
+                    DH_ratchet = dh_step2(int(p_ratchet_key,16), int(my_ratchet_key,16))
+                    kdf_input = root_key_chain + to_bytearray(hex(DH_ratchet))
+                    # update receiving key
+                    root_key_chain, receiving_key_chain = chain_keys_kdf(kdf_input)
+                    # update sending key chain
+                    # TODO : ne pas oublier de lire les messages avant de changer les keychains définitivement
+                    # c'est un problème si on recoit des trucs out of order mais ca n'arrivera pas dans nos tests
+
+                    kdf_input = root_key_chain + to_bytearray(hex(DH_ratchet))
+                    root_key_chain, sending_key_chain = chain_keys_kdf(kdf_input)
+
+                # not needed anymore since the ratchet_key will change if the keychain is null
+                #if len(receiving_key_chain) == 0:
+                    ##create key chain with root key
+                    #root_key_chain, receiving_key_chain = chain_keys_kdf(root_key_chain)
 
                 # 1 KDF to get decryption key for this message
                 receiving_key_chain, encryption_key = chain_keys_kdf(receiving_key_chain)
@@ -506,8 +556,23 @@ if __name__ == "__main__":
     # Testing message in the other direction, it should reuse the already established key chain
     to_id=1
     client2.send_message(to_id,"Message other direction")
-    print("READIN ALL MESSSAGES")
+    client2.send_message(to_id,"Second Message other direction")
     messages = client1.request_messages()
     client1.read_messages(messages)
 
+    to_id=2
+    client1.send_message(to_id,"Back in first direction, hope this works")
+    messages = client2.request_messages()
+    client2.read_messages(messages)
+
+    to_id=1
+    client2.send_message(to_id,"Changing ratchet key in other direction, inshalla", update_ratchet_key=True)
+    messages = client1.request_messages()
+    client1.read_messages(messages)
+
+
+    to_id=2
+    client1.send_message(to_id,"Back in first direction after ratchet range. ALLELUIA")
+    messages = client2.request_messages()
+    client2.read_messages(messages)
 
