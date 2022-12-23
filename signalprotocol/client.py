@@ -143,9 +143,14 @@ class client:
         # use KDF to get session key
         keys_str = str(dh1) +str(dh2) +str(dh3) +str(dh4)
         keys_str = to_bytearray(keys_str)
-        session_key = session_key_derivation(keys_str)
-        return session_key
+        root_key = session_key_derivation(keys_str)
+        return root_key
 
+    def keys_response_get_signed_prekey(self, keys_response):
+        json_string=json.loads(keys_response)
+        #TODO: verify signature
+        p_signed_prekey = int(json_string["p_signed_prekey"], 16)
+        return p_signed_prekey
 
     def table_row_to_key_chains(self, row):
         #      sending    receiving   root       p_ratchet  my_ratchet  excpecting ratchet
@@ -177,11 +182,17 @@ class client:
             keys_response = self.get_key_bundle(to_id)
             # create ephemeral key
             ephemeral_key = randbits(self.dh_key_size)
-            # create session key
+            # create root key
             root_key = self.create_root_key_when_sending(keys_response, ephemeral_key)
 
+            # create ratchet key
+            # when no session, use public signed key
+            p_presigned_key = self.keys_response_get_signed_prekey(keys_response)
+            ratchet_DH = dh_step2(p_presigned_key, int(my_ratchet_key, 16))
+
             # first derivation creates key chains
-            root_key_chain, sending_key_chain = chain_keys_kdf(root_key)
+            derivation_input = root_key + to_bytearray(hex(ratchet_DH))
+            root_key_chain, sending_key_chain = chain_keys_kdf(derivation_input)
 
             # 1 KDF to get the encryption key to send message
             sending_key_chain, encryption_key = chain_keys_kdf(sending_key_chain)
@@ -305,8 +316,13 @@ class client:
                 # The first key is a result of all the DH exchanges
                 root_key = session_key_derivation(keys_str)
 
+                # calculate ratchet data to calculate key chain
+                # When first receiving, we use our private presigned key and the advertised ratchet key
+                ratchet_DH = dh_step2(int(p_ratchet_key,16), self.signed_prekey)
+
                 # The first key derivation creates the receiving key
-                root_key_chain , receiving_key_chain = chain_keys_kdf(root_key)
+                derivation_input = root_key + to_bytearray(hex(ratchet_DH))
+                root_key_chain , receiving_key_chain = chain_keys_kdf(derivation_input)
 
                 # 1 KDF to get encryption key for this message
                 receiving_key_chain, encryption_key = chain_keys_kdf(receiving_key_chain)
