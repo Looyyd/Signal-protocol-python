@@ -73,6 +73,10 @@ class client:
         self.create_bundle()
         return
 
+    def generate_ratchet_key(self):
+        # TODO: comment genrere des clefs pour dh?
+        return hex(randbits(self.dh_key_size))
+
     def generate_one_time_keys(self):
         for i in range(0,self.number_otk):
             self.one_time_prekeys.append(randbits(self.dh_key_size))
@@ -144,7 +148,8 @@ class client:
 
 
     def table_row_to_key_chains(self, row):
-        return row[0][1],row[0][2],row[0][3]
+        #      sending    receiving   root       p_ratchet  my_ratchet  excpecting ratchet
+        return row[0][1], row[0][2],  row[0][3], row[0][4], row[0][5],  row[0][6]
 
     #The client needs to be able to send a message to an id
     def send_message(self, to_id, message):
@@ -154,11 +159,20 @@ class client:
         print("ROWS = ", rows)
 
         if len(rows)==0:
+            # New destination
             no_session_key = True
         else:
+            # Already known destinatino
             no_session_key = False
         # if no session key already
         if no_session_key:
+            # generate new key
+            my_ratchet_key = self.generate_ratchet_key()
+            # we expect new ratchet from the destination since we don't have one for now
+            expecting_new_ratchet = True
+            # We don't know his key
+            p_ratchet_key = ""
+
             # get key bundle of destination
             keys_response = self.get_key_bundle(to_id)
             # create ephemeral key
@@ -175,12 +189,11 @@ class client:
             #receiving key is empty for now
             receiving_key_chain = bytearray()
 
-            #  insert to db
-            self.update_sessions_keys_in_local_db(to_id, sending_key_chain, receiving_key_chain, root_key_chain)
 
         else :
             #if there are keychains already
-            sending_key_chain, receiving_key_chain, root_key_chain = self.table_row_to_key_chains(rows)
+            sending_key_chain, receiving_key_chain, root_key_chain,\
+                p_ratchet_key, my_ratchet_key, expecting_new_ratchet= self.table_row_to_key_chains(rows)
 
             #if sending key chain empty
             if len(sending_key_chain) == 0:
@@ -191,8 +204,9 @@ class client:
             # 1 KDF to get the encryption key for this message
             sending_key_chain, encryption_key = chain_keys_kdf(sending_key_chain)
 
-            #update chain value
-            self.update_sessions_keys_in_local_db(to_id,sending_key_chain, receiving_key_chain, root_key_chain)
+        #update chain value
+        self.update_sessions_keys_in_local_db(to_id,sending_key_chain, receiving_key_chain, root_key_chain,
+                                              p_ratchet_key, my_ratchet_key, expecting_new_ratchet)
 
         # counter mode encrypt the message with session key
         nonce = token_bytes(16)
@@ -216,7 +230,8 @@ class client:
                             "p_ephemeral_key": hex(p_ephemeral_key),
                             "nonce": nonce.hex(),
                             "p_one_time_prekey_n": p_one_time_prekey_n,
-                            "ciphertext": encrypted.hex()}
+                            "ciphertext": encrypted.hex(),
+                            "p_ratchet_key": hex(dh_step1(int(my_ratchet_key,16)))}
         else:
             #there is a session key already
             message_json={"nonce": nonce.hex(),
@@ -245,7 +260,14 @@ class client:
             # check if session_key_already exists
             rows = self.get_local_session_keys_from_db(from_id)
             if (len(rows)==0):
-                # create the session key
+                # create the key chains
+                # we don't expect ratchet at first
+                expecting_ratchet = False
+
+                p_ratchet_key =  json_message["p_ratchet_key"]
+                # generate our own ratchet key
+                my_ratchet_key =  self.generate_ratchet_key()
+
                 p_identity_key =  int(json_message["p_identity_key"],16)
                 p_ephemeral_key =  int(json_message["p_ephemeral_key"],16)
                 # Now to the 3 (optionnaly 4 if one time prekey is used) key exchanges
@@ -292,11 +314,10 @@ class client:
                 #sending key chain is empty for now
                 sending_key_chain = bytearray()
 
-                # instert into local db
-                self.update_sessions_keys_in_local_db(from_id, sending_key_chain, receiving_key_chain, root_key_chain)
             else:
                 # if key chains exist already
-                sending_key_chain, receiving_key_chain, root_key_chain = self.table_row_to_key_chains(rows)
+                sending_key_chain, receiving_key_chain, root_key_chain,\
+                    p_ratchet_key, my_ratchet_key, expecting_ratchet= self.table_row_to_key_chains(rows)
 
                 if len(receiving_key_chain) == 0:
                     #create key chain with root key
@@ -305,9 +326,9 @@ class client:
                 # 1 KDF to get decryption key for this message
                 receiving_key_chain, encryption_key = chain_keys_kdf(receiving_key_chain)
 
-                #update chain values
-                self.update_sessions_keys_in_local_db(from_id,sending_key_chain,receiving_key_chain, root_key_chain)
-
+            # instert into local db either way( if key chain exists or not)
+            self.update_sessions_keys_in_local_db(from_id, sending_key_chain, receiving_key_chain, root_key_chain,
+                                                  p_ratchet_key, my_ratchet_key, expecting_ratchet)
 
             aes_session_key = encryption_key
             stream = counter_mode_aes(len(ciphertext) * 8 // 128 + 1, nonce, aes_session_key)
@@ -351,13 +372,18 @@ class client:
         rows = c.fetchall()
         return rows
 
-    def update_sessions_keys_in_local_db(self, id, sending_key_chain, receiving_key_chain, root_key_chain):
+    def update_sessions_keys_in_local_db\
+                    (self, id, sending_key_chain, receiving_key_chain, root_key_chain,
+                     p_ratchet_key, my_ratchet_key, expecting_new_ratchet):
         print("UPDATING key with id", id )
         conn = sqlite3.connect(self.db_name)
         c = conn.cursor()
         #update aka insert or replace
-        sql = "INSERT OR REPLACE INTO session_keys (id, sending_key, receiving_key, root_key) VALUES(?,?,?,?)"
-        args = (id, sending_key_chain, receiving_key_chain, root_key_chain)
+        sql = "INSERT OR REPLACE INTO session_keys " \
+              "(id, sending_key, receiving_key, root_key, p_ratchet_key, my_ratchet_key, expecting_new_ratchet)" \
+              "VALUES(?,?,?,?,?,?,?)"
+        args = (id, sending_key_chain, receiving_key_chain, root_key_chain,
+                p_ratchet_key, my_ratchet_key, expecting_new_ratchet)
         c.execute(sql,args)
         conn.commit()
 
@@ -366,12 +392,20 @@ class client:
         c = conn.cursor()
         c.execute('''
                           CREATE TABLE IF NOT EXISTS messages
-                          ([message_id] INTEGER PRIMARY KEY, [from_id] INTEGER, [message] TEXT)
+                          ([message_id] INTEGER PRIMARY KEY,
+                           [from_id] INTEGER,
+                            [message] TEXT)
                           ''')
-        # table of session keys
+        # create table of key chain
         c.execute('''
                           CREATE TABLE IF NOT EXISTS session_keys
-                          ([id] INTEGER PRIMARY KEY, [sending_key] TEXT, [receiving_key] TEXT, [root_key] TEXT)
+                          ([id] INTEGER PRIMARY KEY,
+                          [sending_key] TEXT,
+                           [receiving_key] TEXT,
+                            [root_key] TEXT,
+                             [p_ratchet_key] TEXT,
+                              [my_ratchet_key] TEXT,
+                               [expecting_new_ratchet] BOOLEAN)
                           ''')
         conn.commit()
         return
