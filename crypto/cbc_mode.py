@@ -50,7 +50,7 @@ def cbc_mode_aes_decrypt(ciphertext, iv, key):
 if __name__ == "__main__":
     plaintext = "Salut Bastien, c'est mon message"
     iv = token_bytes(AES_BLOCK_SIZE_BYTES)
-    key = token_bytes(aes.AES_KEY_SIZE_BYES)
+    key = token_bytes(aes.AES_KEY_SIZE_BYTES)
 
     ct = cbc_mode_aes_encrypt(plaintext, iv, key)
     decrypted = cbc_mode_aes_decrypt(ct,iv, key)

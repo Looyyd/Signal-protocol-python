@@ -1,4 +1,5 @@
 from crypto import hmac_SHA3_512
+from crypto.aes import AES_KEY_SIZE_BYTES
 
 # taken from https://en.wikipedia.org/wiki/PBKDF2
 
@@ -27,6 +28,12 @@ def hkdf(length, salt, password, c_iter ):
 def session_key_derivation(keys_str):
     # 2 iteration car mon implémentation est giga slow
     return hkdf(512//8, "", keys_str, 2)
+
+def chain_keys_kdf(keys_str):
+    derivation = hkdf(512//8, "", keys_str, 2)
+    chain_key = derivation[0:AES_KEY_SIZE_BYTES]
+    other_key = derivation[AES_KEY_SIZE_BYTES:2* AES_KEY_SIZE_BYTES]
+    return chain_key, other_key
 
 if __name__ == "__main__":
     # TODO, normalement le nombre d'itérations c'est 1000 au moins

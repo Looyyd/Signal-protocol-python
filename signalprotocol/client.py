@@ -143,6 +143,8 @@ class client:
         return session_key
 
 
+    def table_row_to_key_chains(self, row):
+        return row[0][1],row[0][2],row[0][3]
 
     #The client needs to be able to send a message to an id
     def send_message(self, to_id, message):
@@ -163,35 +165,34 @@ class client:
             ephemeral_key = randbits(self.dh_key_size)
             # create session key
             root_key = self.create_root_key_when_sending(keys_response, ephemeral_key)
+
+            # first derivation creates key chains
+            root_key_chain, sending_key_chain = chain_keys_kdf(root_key)
+
+            # 1 KDF to get the encryption key to send message
+            sending_key_chain, encryption_key = chain_keys_kdf(sending_key_chain)
+
+            #receiving key is empty for now
+            receiving_key_chain = bytearray()
+
             #  insert to db
-            sending_key =binascii.hexlify(bytearray(root_key[0:AES_KEY_SIZE//8]))
-            receiving_key = binascii.hexlify(bytearray(root_key[AES_KEY_SIZE//8: 2*AES_KEY_SIZE//8]))
-
-            # sending key derivation
-            chain_key = session_key_derivation(sending_key)
-            sending_key= chain_key[0:AES_KEY_SIZE//8]
-            #update chain value
-
-            # we will us this key to encrypt
-            encryption_key = chain_key[AES_KEY_SIZE//8: 2* AES_KEY_SIZE//8]
-            root_key_chain = root_key
-
-            self.update_sessions_keys_in_local_db(to_id, sending_key, receiving_key, root_key_chain)
+            self.update_sessions_keys_in_local_db(to_id, sending_key_chain, receiving_key_chain, root_key_chain)
 
         else :
-            #if there is a session key already
-            #  split into 2
-            sending_key =  bytearray(rows[0][1])
-            receiving_key= bytearray(rows[0][2])
-            root_key_chain = bytearray(rows[0][3])
+            #if there are keychains already
+            sending_key_chain, receiving_key_chain, root_key_chain = self.table_row_to_key_chains(rows)
 
-            #update keychain X3DH keychain for sending
-            chain_key = session_key_derivation(sending_key)
-            sending_key= chain_key[0:AES_KEY_SIZE//8]
+            #if sending key chain empty
+            if len(sending_key_chain) == 0:
+                # 1 KDF with root key to create the chain
+                root_key_chain, sending_key_chain = chain_keys_kdf(root_key_chain)
+
+
+            # 1 KDF to get the encryption key for this message
+            sending_key_chain, encryption_key = chain_keys_kdf(sending_key_chain)
+
             #update chain value
-            self.update_sessions_keys_in_local_db(to_id,sending_key,receiving_key, root_key_chain)
-
-            encryption_key = chain_key[AES_KEY_SIZE//8: 2* AES_KEY_SIZE//8]
+            self.update_sessions_keys_in_local_db(to_id,sending_key_chain, receiving_key_chain, root_key_chain)
 
         # counter mode encrypt the message with session key
         nonce = token_bytes(16)
@@ -279,35 +280,34 @@ class client:
                 # use KDF to get session key
                 keys_str = str(dh1) +str(dh2) +str(dh3) +str(dh4)
                 keys_str = to_bytearray(keys_str)
+                # The first key is a result of all the DH exchanges
                 root_key = session_key_derivation(keys_str)
-                receiving_key_chain =binascii.hexlify(bytearray(root_key[0:AES_KEY_SIZE//8]))
 
-                # update key chain
-                chain_key = session_key_derivation(receiving_key_chain)
-                receiving_key_chain= chain_key[0:AES_KEY_SIZE//8]
-                #update chain value
+                # The first key derivation creates the receiving key
+                root_key_chain , receiving_key_chain = chain_keys_kdf(root_key)
 
-                # we will us this key to encrypt
-                encryption_key = chain_key[AES_KEY_SIZE//8: 2* AES_KEY_SIZE//8]
+                # 1 KDF to get encryption key for this message
+                receiving_key_chain, encryption_key = chain_keys_kdf(receiving_key_chain)
+
+                #sending key chain is empty for now
+                sending_key_chain = bytearray()
 
                 # instert into local db
-                sending_key_chain = binascii.hexlify(bytearray(root_key[AES_KEY_SIZE//8: 2*AES_KEY_SIZE//8]))
-                root_key_chain = binascii.hexlify(bytearray(root_key))
                 self.update_sessions_keys_in_local_db(from_id, sending_key_chain, receiving_key_chain, root_key_chain)
             else:
-                # if session key already exists
-                # split into 2
-                sending_key_chain =  bytearray(rows[0][1])
-                receiving_key_chain= bytearray(rows[0][2])
-                root_key_chain = bytearray(rows[0][3])
+                # if key chains exist already
+                sending_key_chain, receiving_key_chain, root_key_chain = self.table_row_to_key_chains(rows)
 
-                #update keychain X3DH keychain for receiving
-                chain_key = session_key_derivation(receiving_key_chain)
-                receiving_key_chain= chain_key[0:AES_KEY_SIZE//8]
-                #update chain value
+                if len(receiving_key_chain) == 0:
+                    #create key chain with root key
+                    root_key_chain, receiving_key_chain = chain_keys_kdf(root_key_chain)
+
+                # 1 KDF to get decryption key for this message
+                receiving_key_chain, encryption_key = chain_keys_kdf(receiving_key_chain)
+
+                #update chain values
                 self.update_sessions_keys_in_local_db(from_id,sending_key_chain,receiving_key_chain, root_key_chain)
 
-                encryption_key = chain_key[AES_KEY_SIZE//8: 2* AES_KEY_SIZE//8]
 
             aes_session_key = encryption_key
             stream = counter_mode_aes(len(ciphertext) * 8 // 128 + 1, nonce, aes_session_key)
