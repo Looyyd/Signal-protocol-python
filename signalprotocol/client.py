@@ -162,10 +162,10 @@ class client:
             # create ephemeral key
             ephemeral_key = randbits(self.dh_key_size)
             # create session key
-            session_key = self.create_root_key_when_sending(keys_response, ephemeral_key)
+            root_key = self.create_root_key_when_sending(keys_response, ephemeral_key)
             #  insert to db
-            sending_key =binascii.hexlify(bytearray(session_key[0:AES_KEY_SIZE//8]))
-            receiving_key = binascii.hexlify(bytearray(session_key[AES_KEY_SIZE//8: 2*AES_KEY_SIZE//8]))
+            sending_key =binascii.hexlify(bytearray(root_key[0:AES_KEY_SIZE//8]))
+            receiving_key = binascii.hexlify(bytearray(root_key[AES_KEY_SIZE//8: 2*AES_KEY_SIZE//8]))
 
             # sending key derivation
             chain_key = session_key_derivation(sending_key)
@@ -174,21 +174,22 @@ class client:
 
             # we will us this key to encrypt
             encryption_key = chain_key[AES_KEY_SIZE//8: 2* AES_KEY_SIZE//8]
-            session_key = encryption_key
+            root_key_chain = root_key
 
-            self.update_sessions_keys_in_local_db(to_id, sending_key, receiving_key)
+            self.update_sessions_keys_in_local_db(to_id, sending_key, receiving_key, root_key_chain)
 
         else :
             #if there is a session key already
             #  split into 2
             sending_key =  bytearray(rows[0][1])
             receiving_key= bytearray(rows[0][2])
+            root_key_chain = bytearray(rows[0][3])
 
             #update keychain X3DH keychain for sending
             chain_key = session_key_derivation(sending_key)
             sending_key= chain_key[0:AES_KEY_SIZE//8]
             #update chain value
-            self.update_sessions_keys_in_local_db(to_id,sending_key,receiving_key)
+            self.update_sessions_keys_in_local_db(to_id,sending_key,receiving_key, root_key_chain)
 
             encryption_key = chain_key[AES_KEY_SIZE//8: 2* AES_KEY_SIZE//8]
 
@@ -279,7 +280,6 @@ class client:
                 keys_str = str(dh1) +str(dh2) +str(dh3) +str(dh4)
                 keys_str = to_bytearray(keys_str)
                 root_key = session_key_derivation(keys_str)
-                # instert into local db
                 receiving_key_chain =binascii.hexlify(bytearray(root_key[0:AES_KEY_SIZE//8]))
 
                 # update key chain
@@ -290,19 +290,22 @@ class client:
                 # we will us this key to encrypt
                 encryption_key = chain_key[AES_KEY_SIZE//8: 2* AES_KEY_SIZE//8]
 
+                # instert into local db
                 sending_key_chain = binascii.hexlify(bytearray(root_key[AES_KEY_SIZE//8: 2*AES_KEY_SIZE//8]))
-                self.update_sessions_keys_in_local_db(from_id, sending_key_chain, receiving_key_chain)
+                root_key_chain = binascii.hexlify(bytearray(root_key))
+                self.update_sessions_keys_in_local_db(from_id, sending_key_chain, receiving_key_chain, root_key_chain)
             else:
                 # if session key already exists
                 # split into 2
                 sending_key_chain =  bytearray(rows[0][1])
                 receiving_key_chain= bytearray(rows[0][2])
+                root_key_chain = bytearray(rows[0][3])
 
                 #update keychain X3DH keychain for receiving
                 chain_key = session_key_derivation(receiving_key_chain)
                 receiving_key_chain= chain_key[0:AES_KEY_SIZE//8]
                 #update chain value
-                self.update_sessions_keys_in_local_db(from_id,sending_key_chain,receiving_key_chain)
+                self.update_sessions_keys_in_local_db(from_id,sending_key_chain,receiving_key_chain, root_key_chain)
 
                 encryption_key = chain_key[AES_KEY_SIZE//8: 2* AES_KEY_SIZE//8]
 
@@ -348,13 +351,13 @@ class client:
         rows = c.fetchall()
         return rows
 
-    def update_sessions_keys_in_local_db(self, id, sending_key_chain, receiving_key_chain):
+    def update_sessions_keys_in_local_db(self, id, sending_key_chain, receiving_key_chain, root_key_chain):
         print("UPDATING key with id", id )
         conn = sqlite3.connect(self.db_name)
         c = conn.cursor()
         #update aka insert or replace
-        sql = "INSERT OR REPLACE INTO session_keys (id, sending_key, receiving_key) VALUES(?,?,?)"
-        args = (id, sending_key_chain, receiving_key_chain)
+        sql = "INSERT OR REPLACE INTO session_keys (id, sending_key, receiving_key, root_key) VALUES(?,?,?,?)"
+        args = (id, sending_key_chain, receiving_key_chain, root_key_chain)
         c.execute(sql,args)
         conn.commit()
 
@@ -368,7 +371,7 @@ class client:
         # table of session keys
         c.execute('''
                           CREATE TABLE IF NOT EXISTS session_keys
-                          ([id] INTEGER PRIMARY KEY, [sending_key] TEXT, [receiving_key] TEXT)
+                          ([id] INTEGER PRIMARY KEY, [sending_key] TEXT, [receiving_key] TEXT, [root_key] TEXT)
                           ''')
         conn.commit()
         return
