@@ -27,19 +27,19 @@ def decrypt(ciphermessage: int, pub_key: int, mod: int)-> int:
 # S3 : create public key (must not be a factor of E(n)) pubkey
 # S4 : create private key = pubkey^-1
 
-def large_odd_number():
+def large_odd_number()-> int:
     #Generating a 2048 bits long number
     p = random.randrange(2**(2048-1)+1, 2**2048-1, 2)
     return p
 
-def large_prime_number():
+def large_prime_number()-> int:
     isPrime = False
     while isPrime == False:
         p = large_odd_number()
-        isPrime = test_primality(p)
+        isPrime = check_primality(p)
     return p
 
-def test_primality(n):
+def check_primality(n: int):
     #Use the Rabin-Miller test to check if probabilty of being a prime number is high enough
     #We will use 20 rounds of Rabin-Miller test
     
@@ -49,6 +49,7 @@ def test_primality(n):
     small_primes_list = first_10000_primes.primes
 
     # TODO: change later to more ?
+    #CHANGED NAME to avoid collision with testing method
     n_rounds = 6
     
     #Test first prime
@@ -78,20 +79,20 @@ def test_primality(n):
 
 #Euclide and Extanded Euclide tests will be necessary to generate keys
 #TODO Optimize recursive pgcd might get better results than iterative method. For now pgcd works, not rec_pgcd
-def rec_pgcd(m, n):
+def rec_pgcd(m: int, n: int)-> int:
     if n == 0:
         return m
     else:
         r = m % n
         return rec_pgcd(n, r)
 
-def pgcd(m, n):
+def pgcd(m: int, n: int)-> int:
     while m:
         m,n = n%m,m
     return n
 
 
-def inv_mod(e,n):
+def inv_mod(e: int,n: int)-> int:
     r0, u0, v0 = e, 1, 0
     r1, u1, v1 = n, 0, 1
     while r1 != 0:
