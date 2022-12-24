@@ -83,7 +83,7 @@ class client:
         # 3 : Use RSA encryption with LIFETIME_priv_key to create signature
         bytearray_signed_prekey = self.signed_prekey.to_bytes(512, "little")
         signed_prekey_hash = SHA3_512(bytearray_signed_prekey)
-        self.prekey_signature = rsa.encrypt(signed_prekey_hash, self.identity_key, LIFETIME_mod)
+        self.prekey_signature = rsa.sign(signed_prekey_hash, self.identity_key, LIFETIME_mod)
 
 
 
@@ -154,7 +154,7 @@ class client:
         signed_prekey_hash = SHA3_512(bytearray_signed_prekey)
 
         # This can't work, how do I point to corresponding values from other client ?
-        decrypted_signature = rsa.decrypt(p_prekey_signtaure, self.identity_key, self.LIFETIME_mod)
+        decrypted_signature = rsa.unsign(p_prekey_signtaure, self.p_identity_key, self.LIFETIME_mod)
 
 
 
@@ -201,7 +201,7 @@ class client:
         signed_prekey_hash = SHA3_512(bytearray_signed_prekey)
 
         # This can't work, how do I point to corresponding values from other client ?
-        decrypted_signature = rsa.decrypt(p_prekey_signtaure, self.identity_key, self.LIFETIME_mod)
+        decrypted_signature = rsa.unsign(p_prekey_signtaure, self.p_identity_key, self.LIFETIME_mod)
         
         return p_signed_prekey
 

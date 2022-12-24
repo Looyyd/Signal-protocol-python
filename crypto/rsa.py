@@ -12,11 +12,11 @@ from crypto import first_10000_primes
 
 # Basic encryptio/decryption functions
 
-def encrypt(message: int, priv_key: int, mod: int)-> int:
+def sign(message: int, priv_key: int, mod: int)-> int:
     # Encrypt a message using RSA scheme
     return pow(message,priv_key,mod)
     
-def decrypt(ciphermessage: int, pub_key: int, mod: int)-> int:
+def unsign(ciphermessage: int, pub_key: int, mod: int)-> int:
     # Decrypt a message using RSA scheme
     return pow(ciphermessage,pub_key,mod)
 
@@ -137,8 +137,8 @@ if __name__ == "__main__":
         start_time = time.time()
         (pub, priv, mod) = generate_keys()
         m = 10
-        c = encrypt(m, priv, mod)
-        n = decrypt(c, pub, mod)
+        c = sign(m, priv, mod)
+        n = unsign(c, pub, mod)
         print("Message", n)
         print("---------------------------------------------------------------------------------------------")
         print("Public Key", pub)
