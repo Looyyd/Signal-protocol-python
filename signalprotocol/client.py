@@ -6,6 +6,8 @@ import json
 from crypto.hkdf import *
 from crypto.counter_mode import *
 from crypto.bytearray_operations import *
+from crypto import rsa
+from crypto import SHA3_512
 import sqlite3
 import binascii
 
@@ -22,7 +24,8 @@ class client:
     dh_key_size = 2048
     identity_key = None
     signed_prekey = None
-    # TODO: add signature
+    # TODO: add signature | Pas compris ce que je dois ajouter ici
+    # Par contre, peut-être besoin d'ajouter LIFETIME_mod ici pour pouvoir vérifier la signature.
     prekey_signature = None
     one_time_prekeys = []
     key_bundle = None
@@ -48,25 +51,43 @@ class client:
         # p stands for public
         p_identity_key = hex(dh_step1(self.identity_key))
         p_signed_prekey = hex(dh_step1(self.signed_prekey))
+        p_signed_prekey_signtaure = 0
         p_one_time_prekeys = []
         for key in self.one_time_prekeys:
             p_one_time_prekeys.append(hex(dh_step1(key)))
         #bundle should be json
         #TODO: add signature to bundle
-        json_string = {"p_identity_key": p_identity_key, "p_signed_prekey": p_signed_prekey, "p_one_time_prekeys": p_one_time_prekeys}
+        json_string = {"p_identity_key": p_identity_key, "p_signed_prekey": p_signed_prekey, "p_signed_prekey_signtaure": p_signed_prekey_signtaure, "p_one_time_prekeys": p_one_time_prekeys}
         self.key_bundle = json.dumps(json_string)
         return
 
     def generate_keys(self):
         # First the client generates by sending:
-        # One identity key
-        # one signed prekey and it's signature
+        # One identity key | PUB KEY ONLY ?
+        # one signed prekey and its signature
         # A defined number of prekeys
 
-        self.identity_key = randbits(self.dh_key_size)
+        # Rename var ?
+        LIFETIME_pub_key, LIFETIME_priv_key, LIFETIME_mod = rsa.generate_keys()
+        self.identity_key = LIFETIME_pub_key
+
+
         # TODO: add signature
-        self.signed_prekey = randbits(self.dh_key_size)
+        presigned_pub_key, presigned_priv_key, presigned_mod = rsa.generate_keys()
+        self.signed_prekey = presigned_pub_key
+
+        # Signature step
+        # 1 : Int to bytearray to use SHA
+        # 2 : Create hash of signed_prekey
+        # 3 : Use RSA encryption with LIFETIME_priv_key to create signature
+        bytearray_signed_prekey = self.signed_prekey.to_bytes(512, "little")
+        signed_prekey_hash = SHA3_512(bytearray_signed_prekey)
+        signed_prekey_signature = rsa.encrypt(signed_prekey_hash, self.identity_key, LIFETIME_mod)
+
+
+
         # generate multiple keys
+        # For now 5 OT keys (How many should we use ?)
         self.generate_one_time_keys()
 
         # Create key bundle
@@ -79,6 +100,8 @@ class client:
 
     def generate_one_time_keys(self):
         for i in range(0,self.number_otk):
+            # I will let a comment line with a RSA generation key, useful or not ?
+            #self.one_time_prekeys.append(rsa.generate_keys())
             self.one_time_prekeys.append(randbits(self.dh_key_size))
 
 
@@ -119,6 +142,20 @@ class client:
         p_identity_key = int(json_string["p_identity_key"], 16)
         #TODO: verify signature
         p_signed_prekey = int(json_string["p_signed_prekey"], 16)
+        p_signed_prekey_signtaure = int(json_string["p_signed_prekey_signature"], 16)
+
+        # verifying signature steps : 
+        # 1 : Calculate hash of p_signed_prekey
+        # 2 : Decrypt p_signed_prekey_signtaure using RSA public key
+        # 3 : Compare 
+
+        bytearray_signed_prekey = self.signed_prekey.to_bytes(512, "little")
+        signed_prekey_hash = SHA3_512(bytearray_signed_prekey)
+
+        # This can't work, how do I point to corresponding values.
+        decrypted_signature = rsa.decrypt(p_signed_prekey_signtaure, self.identity_key, self.LIFETIME_mod)
+
+
 
         # remember which key was used
         p_one_time_prekey_n = json_string["p_one_time_prekey_n"]
@@ -148,8 +185,23 @@ class client:
 
     def keys_response_get_signed_prekey(self, keys_response):
         json_string=json.loads(keys_response)
+
         #TODO: verify signature
         p_signed_prekey = int(json_string["p_signed_prekey"], 16)
+
+        p_signed_prekey_signtaure = int(json_string["p_signed_prekey_signature"], 16)
+
+        # verifying signature steps : 
+        # 1 : Calculate hash of p_signed_prekey
+        # 2 : Decrypt p_signed_prekey_signtaure using RSA public key
+        # 3 : Compare 
+
+        bytearray_signed_prekey = self.signed_prekey.to_bytes(512, "little")
+        signed_prekey_hash = SHA3_512(bytearray_signed_prekey)
+
+        # This can't work, how do I point to corresponding values.
+        decrypted_signature = rsa.decrypt(p_signed_prekey_signtaure, self.identity_key, self.LIFETIME_mod)
+        
         return p_signed_prekey
 
     def table_row_to_key_chains(self, row):
