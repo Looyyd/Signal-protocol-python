@@ -1,10 +1,6 @@
 # This file is entirely dedicated to cryptographic operations linked to RSA
-import numpy
-import random
-import time
+import numpy, random, time, os, sys
 
-# ca voulait pas import sans le path
-import os, sys
 sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
 
 from crypto import first_10000_primes
@@ -12,14 +8,13 @@ from crypto import first_10000_primes
 
 # Basic encryptio/decryption functions
 
-def sign(message: int, priv_key: int, mod: int)-> int:
+def encrypt(message: int, priv_key: int, mod: int)-> int:
     # Encrypt a message using RSA scheme
     return pow(message,priv_key,mod)
     
-def unsign(ciphermessage: int, pub_key: int, mod: int)-> int:
+def decrypt(ciphermessage: int, pub_key: int, mod: int)-> int:
     # Decrypt a message using RSA scheme
     return pow(ciphermessage,pub_key,mod)
-
 
 # To calculate keys, we need 4 steps : 
 # S1 : Find to large prime number (in terms of bytes representation) p and q
@@ -91,20 +86,6 @@ def pgcd(m: int, n: int)-> int:
         m,n = n%m,m
     return n
 
-
-def inv_mod(e: int,n: int)-> int:
-    r0, u0, v0 = e, 1, 0
-    r1, u1, v1 = n, 0, 1
-    while r1 != 0:
-        r2 = r0 % r1
-        q2 = r0 // r1
-        u, v = u0, v0
-        r0, u0, v0 = r1, u1, v1
-        r1, u1, v1 = r2, u-q2*u1, v-q2*v1
-    if u0 < 0:
-        u0 = u0 + n
-    return u0
-
 # This function generates public and associated private keys
 def generate_keys():
 
@@ -123,7 +104,6 @@ def generate_keys():
         # last parameter give step 2 to function, that way it only gives odd numbers
         pub_key = random.randrange(2, ind_n, 1)
 
-    #priv_key = inv_mod(pub_key, ind_n)
     priv_key = pow(pub_key,-1,ind_n)
 
     return pub_key, priv_key, n
@@ -137,8 +117,8 @@ if __name__ == "__main__":
         start_time = time.time()
         (pub, priv, mod) = generate_keys()
         m = 10
-        c = sign(m, priv, mod)
-        n = unsign(c, pub, mod)
+        c = encrypt(m, priv, mod)
+        n = decrypt(c, pub, mod)
         print("Message", n)
         print("---------------------------------------------------------------------------------------------")
         print("Public Key", pub)

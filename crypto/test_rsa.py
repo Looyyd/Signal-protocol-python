@@ -107,22 +107,6 @@ def test_large_odd_number():
 
 def test_large_prime_number():
 
-    #with pytest.raises(TypeError):
-    #    m = large_prime_number()
-    #    m == float
-    #    m == str
-    #    m == complex
-    #    m == list
-    #    m == tuple
-    #    m == range
-    #    m == dict
-    #    m == set
-    #    m == frozenset
-    #    m == bool
-    #    m == bytes
-    #    m == bytearray
-    #    m == memoryview
-
     n = large_prime_number()
     assert type(n) == int
 
@@ -181,40 +165,6 @@ def test_pgcd():
     result = pgcd(10, 15)
     assert type(result) == int
     assert result == 5
-
-def test_inv_mod():
-
-    with pytest.raises(TypeError):
-        inv_mod(2.3, 4)
-        inv_mod(2, 3.4)
-        inv_mod("Test", 3)
-        inv_mod(2, "Test")
-        inv_mod(1j, 3)
-        inv_mod(2, 3j)
-        inv_mod([2, 3], 4)
-        inv_mod(2, [3, 4])
-        inv_mod((2, 3), 4)
-        inv_mod(2, (3, 4))
-        inv_mod(range(3), 3)
-        inv_mod(2, range(3))
-        inv_mod({"number": 2}, 3)
-        inv_mod(2, {"number": 2})
-        inv_mod({2, 3}, 4)
-        inv_mod(2, {3, 4})
-        inv_mod(frozenset(2, 3), 4)
-        inv_mod(2, frozenset(3, 4))
-        inv_mod(True, 3)
-        inv_mod(2, True)
-        inv_mod(bytes(2), 3)
-        inv_mod(2, bytes(3))
-        inv_mod(bytearray(2), 3)
-        inv_mod(2, bytearray(3))
-        inv_mod(memoryview(bytes(2), 3))
-        inv_mod(2, memoryview(bytes(2)))
-
-    result = inv_mod(10, 23)
-    assert type(result) == int
-    assert result == 7      
 
 def test_generate_keys():
 
