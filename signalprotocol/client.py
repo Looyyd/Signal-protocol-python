@@ -49,15 +49,16 @@ class client:
     def create_bundle(self):
         #bundle contains first DH steps of each key
         # p stands for public
+        # not sure I need hex respresentation step for signature. JSON or DH criteria ?
         p_identity_key = hex(dh_step1(self.identity_key))
         p_signed_prekey = hex(dh_step1(self.signed_prekey))
-        p_signed_prekey_signtaure = 0
+        p_prekey_signtaure = hex(dh_step1(self.prekey_signature))
         p_one_time_prekeys = []
         for key in self.one_time_prekeys:
             p_one_time_prekeys.append(hex(dh_step1(key)))
         #bundle should be json
         #TODO: add signature to bundle
-        json_string = {"p_identity_key": p_identity_key, "p_signed_prekey": p_signed_prekey, "p_signed_prekey_signtaure": p_signed_prekey_signtaure, "p_one_time_prekeys": p_one_time_prekeys}
+        json_string = {"p_identity_key": p_identity_key, "p_signed_prekey": p_signed_prekey, "p_signed_prekey_signtaure": p_prekey_signtaure, "p_one_time_prekeys": p_one_time_prekeys}
         self.key_bundle = json.dumps(json_string)
         return
 
@@ -82,7 +83,7 @@ class client:
         # 3 : Use RSA encryption with LIFETIME_priv_key to create signature
         bytearray_signed_prekey = self.signed_prekey.to_bytes(512, "little")
         signed_prekey_hash = SHA3_512(bytearray_signed_prekey)
-        signed_prekey_signature = rsa.encrypt(signed_prekey_hash, self.identity_key, LIFETIME_mod)
+        self.prekey_signature = rsa.encrypt(signed_prekey_hash, self.identity_key, LIFETIME_mod)
 
 
 
@@ -142,18 +143,18 @@ class client:
         p_identity_key = int(json_string["p_identity_key"], 16)
         #TODO: verify signature
         p_signed_prekey = int(json_string["p_signed_prekey"], 16)
-        p_signed_prekey_signtaure = int(json_string["p_signed_prekey_signature"], 16)
+        p_prekey_signtaure = int(json_string["p_prekey_signature"], 16)
 
         # verifying signature steps : 
         # 1 : Calculate hash of p_signed_prekey
-        # 2 : Decrypt p_signed_prekey_signtaure using RSA public key
+        # 2 : Decrypt p_prekey_signtaure using RSA public key
         # 3 : Compare 
 
-        bytearray_signed_prekey = self.signed_prekey.to_bytes(512, "little")
+        bytearray_signed_prekey = self.signed_prekey.to_bytes(512, "little") # Is byte order correct ?
         signed_prekey_hash = SHA3_512(bytearray_signed_prekey)
 
-        # This can't work, how do I point to corresponding values.
-        decrypted_signature = rsa.decrypt(p_signed_prekey_signtaure, self.identity_key, self.LIFETIME_mod)
+        # This can't work, how do I point to corresponding values from other client ?
+        decrypted_signature = rsa.decrypt(p_prekey_signtaure, self.identity_key, self.LIFETIME_mod)
 
 
 
@@ -189,18 +190,18 @@ class client:
         #TODO: verify signature
         p_signed_prekey = int(json_string["p_signed_prekey"], 16)
 
-        p_signed_prekey_signtaure = int(json_string["p_signed_prekey_signature"], 16)
+        p_prekey_signtaure = int(json_string["p_prekey_signature"], 16)
 
         # verifying signature steps : 
         # 1 : Calculate hash of p_signed_prekey
-        # 2 : Decrypt p_signed_prekey_signtaure using RSA public key
+        # 2 : Decrypt p_prekey_signtaure using RSA public key
         # 3 : Compare 
 
-        bytearray_signed_prekey = self.signed_prekey.to_bytes(512, "little")
+        bytearray_signed_prekey = self.signed_prekey.to_bytes(512, "little") # is byte order correct ?
         signed_prekey_hash = SHA3_512(bytearray_signed_prekey)
 
-        # This can't work, how do I point to corresponding values.
-        decrypted_signature = rsa.decrypt(p_signed_prekey_signtaure, self.identity_key, self.LIFETIME_mod)
+        # This can't work, how do I point to corresponding values from other client ?
+        decrypted_signature = rsa.decrypt(p_prekey_signtaure, self.identity_key, self.LIFETIME_mod)
         
         return p_signed_prekey
 
