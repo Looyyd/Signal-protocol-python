@@ -24,13 +24,17 @@ class client:
     dh_key_size = 2048
     identity_key = None
     signed_prekey = None
-    # TODO: add signature | Pas compris ce que je dois ajouter ici
-    # Par contre, peut-être besoin d'ajouter LIFETIME_mod ici pour pouvoir vérifier la signature.
     prekey_signature = None
+    identity_modulo = None
     one_time_prekeys = []
     key_bundle = None
     #number of one time keys generated
     number_otk = 1
+    # ATTENTION PAS SUR DE L'ATTRIBUTION PUBLIC/PRIVATE ICI JE CREER DES NOUVEAUX ATTRIBUTS QUI SONT PRIVES 
+    # ET UTILISABLE UNIQUEMENT PAR DES FONCTIONS QUI NE SORTENT PAS DU SCOPE DU CLIENT
+    priv_identity_key = None
+    priv_signed_prekey = None
+
 
     db_name = None
     def __init__(self, id):
@@ -46,19 +50,50 @@ class client:
         self.send_key_bundle()
         return
 
+    # Signature and signature verification method will be put in there, because it will be much more easier to access necessary attributes.
+
+    # Signature step
+        # 1 : Int to bytearray to use SHA
+        # 2 : Create hash of signed_prekey
+        # 3 : Use RSA encryption with LIFETIME_priv_key to create signature
+    
+    #J'ai foutu un paramètre self, chais pas à quoi il sert, mais j'ai l'impression que sans ça pourra pas marcher.
+    def sign(self, signed_prekey, identity_key, identity_modulo): 
+        
+        bytearray_signed_prekey = signed_prekey.to_bytes(256, "little")
+        signed_prekey_hash = SHA3_512.Sha3_512(bytearray_signed_prekey)
+        prekey_signature = rsa.encrypt(signed_prekey_hash, identity_key, identity_modulo)
+
+        return prekey_signature
+
+    # verifying signature steps : 
+        # 1 : Calculate hash of p_signed_prekey
+        # 2 : Decrypt p_prekey_signtaure using RSA public key
+        # 3 : Compare 
+    def verify_signature(self, p_signed_prekey, p_prekey_signature, p_identity_key, p_identity_modulo):
+        
+        bytearray_signed_prekey = p_signed_prekey.to_bytes(256, "little") # is byte order correct ?
+        signed_prekey_hash = SHA3_512.Sha3_512(bytearray_signed_prekey)
+        decrypted_signature = rsa.decrypt(p_prekey_signature, p_identity_key, p_identity_modulo)
+
+        if decrypted_signature == signed_prekey_hash:
+            return decrypted_signature
+        else:
+            return 0
+
+
     def create_bundle(self):
         #bundle contains first DH steps of each key
         # p stands for public
-        # not sure I need hex respresentation step for signature. JSON or DH criteria ?
         p_identity_key = hex(dh_step1(self.identity_key))
         p_signed_prekey = hex(dh_step1(self.signed_prekey))
-        p_prekey_signtaure = hex(dh_step1(self.prekey_signature))
+        p_prekey_signature = hex((self.prekey_signature))
+        identity_key_modulo = hex((self.identity_modulo))
         p_one_time_prekeys = []
         for key in self.one_time_prekeys:
             p_one_time_prekeys.append(hex(dh_step1(key)))
         #bundle should be json
-        #TODO: add signature to bundle
-        json_string = {"p_identity_key": p_identity_key, "p_signed_prekey": p_signed_prekey, "p_signed_prekey_signtaure": p_prekey_signtaure, "p_one_time_prekeys": p_one_time_prekeys}
+        json_string = {"p_identity_key": p_identity_key, "identity_key_modulo": identity_key_modulo, "p_signed_prekey": p_signed_prekey, "p_prekey_signtaure": p_prekey_signature, "p_one_time_prekeys": p_one_time_prekeys}
         self.key_bundle = json.dumps(json_string)
         return
 
@@ -68,27 +103,25 @@ class client:
         # one signed prekey and its signature
         # A defined number of prekeys
 
-        # Rename var ?
+        # CETTE FONCTION GENERE LES CLES ENVOYEES DANS LE BUNDLE CE SONT DONC LES CLES PUBLIQUES 
+        # IL FAUT SEPARER LES VERSION PUBLIQUES DES VERSIONS PRIVEES UN CLIENT DOIT TOUJOURS CONSERVER LA VERSION PRIVEE D'UNE CLE AU RISQUE DE 
+        # DEVOIR CALCULER A NOUVEAU UN COUPLE
+
+        # CLE ET INFOS PERMANENTES
         LIFETIME_pub_key, LIFETIME_priv_key, LIFETIME_mod = rsa.generate_keys()
         self.identity_key = LIFETIME_pub_key
+        self.identity_modulo = LIFETIME_mod
+        self.priv_identity_key = LIFETIME_priv_key
 
-
-        # TODO: add signature
+        # COUPLE ET INFOS PRESIGNEES
         presigned_pub_key, presigned_priv_key, presigned_mod = rsa.generate_keys()
         self.signed_prekey = presigned_pub_key
-
-        # Signature step
-        # 1 : Int to bytearray to use SHA
-        # 2 : Create hash of signed_prekey
-        # 3 : Use RSA encryption with LIFETIME_priv_key to create signature
-        bytearray_signed_prekey = self.signed_prekey.to_bytes(512, "little")
-        signed_prekey_hash = SHA3_512(bytearray_signed_prekey)
-        self.prekey_signature = rsa.sign(signed_prekey_hash, self.identity_key, LIFETIME_mod)
-
-
-
+        self.priv_signed_prekey = presigned_priv_key
+        self.prekey_signature = self.sign(self.signed_prekey, self.priv_identity_key, self.identity_modulo)
+        
+        # ONE TIME KEYS
         # generate multiple keys
-        # For now 5 OT keys (How many should we use ?)
+        # For now 1 OT keys (How many should we use ?)
         self.generate_one_time_keys()
 
         # Create key bundle
@@ -143,21 +176,11 @@ class client:
         p_identity_key = int(json_string["p_identity_key"], 16)
         #TODO: verify signature
         p_signed_prekey = int(json_string["p_signed_prekey"], 16)
-        p_prekey_signtaure = int(json_string["p_prekey_signature"], 16)
+        p_prekey_signature = int(json_string["p_prekey_signature"], 16)
+        p_identity_modulo = int(json_string["identity_key__modulo"], 16)
 
-        # verifying signature steps : 
-        # 1 : Calculate hash of p_signed_prekey
-        # 2 : Decrypt p_prekey_signtaure using RSA public key
-        # 3 : Compare 
-
-        bytearray_signed_prekey = self.signed_prekey.to_bytes(512, "little") # Is byte order correct ?
-        signed_prekey_hash = SHA3_512(bytearray_signed_prekey)
-
-        # This can't work, how do I point to corresponding values from other client ?
-        decrypted_signature = rsa.unsign(p_prekey_signtaure, self.p_identity_key, self.LIFETIME_mod)
-
-
-
+        self.verify_signature(p_signed_prekey, p_prekey_signature, p_identity_key, p_identity_modulo)
+        
         # remember which key was used
         p_one_time_prekey_n = json_string["p_one_time_prekey_n"]
 
@@ -188,21 +211,13 @@ class client:
         json_string=json.loads(keys_response)
 
         #TODO: verify signature
+        p_identity_key = int(json_string["p_identity_key"], 16)
         p_signed_prekey = int(json_string["p_signed_prekey"], 16)
+        p_prekey_signature = int(json_string["p_prekey_signature"], 16)
+        p_identity_modulo = int(json_string["identity_key__modulo"], 16)
 
-        p_prekey_signtaure = int(json_string["p_prekey_signature"], 16)
+        self.verify_signature(p_signed_prekey, p_prekey_signature, p_identity_key, p_identity_modulo)
 
-        # verifying signature steps : 
-        # 1 : Calculate hash of p_signed_prekey
-        # 2 : Decrypt p_prekey_signtaure using RSA public key
-        # 3 : Compare 
-
-        bytearray_signed_prekey = self.signed_prekey.to_bytes(512, "little") # is byte order correct ?
-        signed_prekey_hash = SHA3_512(bytearray_signed_prekey)
-
-        # This can't work, how do I point to corresponding values from other client ?
-        decrypted_signature = rsa.unsign(p_prekey_signtaure, self.p_identity_key, self.LIFETIME_mod)
-        
         return p_signed_prekey
 
     def table_row_to_key_chains(self, row):
@@ -240,6 +255,7 @@ class client:
 
             # create ratchet key
             # when no session, use public signed key
+            # TODO Verify Signature : DONE IN keys_response_get_signed_prekey
             p_presigned_key = self.keys_response_get_signed_prekey(keys_response)
             ratchet_DH = dh_step2(p_presigned_key, int(my_ratchet_key, 16))
 
@@ -256,6 +272,7 @@ class client:
 
         else :
             #if there are keychains already
+            # TODO RAJOUTER PARTAGE SINGATURE + MODULO
             sending_key_chain, receiving_key_chain, root_key_chain,\
                 p_ratchet_key, my_ratchet_key, expecting_new_ratchet= self.table_row_to_key_chains(rows)
 
@@ -365,11 +382,11 @@ class client:
                 p_ephemeral_key =  int(json_message["p_ephemeral_key"],16)
                 # Now to the 3 (optionnaly 4 if one time prekey is used) key exchanges
                 # 1 The identity key of Alice and the signed prekey of Bob
-                dh1 = dh_step2(p_identity_key, self.signed_prekey)
+                dh1 = dh_step2(p_identity_key, self.signed_prekey) #TODO Verify signature : pourquoi self.signed_prekey si on vérifie celle de Bob ? | Si c'est Alice : pk vérifier sa propre signature ?
                 # 2 The ephemeral key of Alice and the identity key of Bob
                 dh2 = dh_step2(p_ephemeral_key, self.identity_key)
                 # 3 The ephemeral key of Alice and the signed prekey of Bob
-                dh3 = dh_step2(p_ephemeral_key, self.signed_prekey)
+                dh3 = dh_step2(p_ephemeral_key, self.signed_prekey) # TODO Verify signature : Idem
                 # 4 If Bob still has a one-time prekey available, his one-time prekey and the ephem-
                 # eral key of Alice
                 # use the one time prekey that is indicated
@@ -400,7 +417,9 @@ class client:
 
                 # calculate ratchet data to calculate key chain
                 # When first receiving, we use our private presigned key and the advertised ratchet key
+                # TODO Verifying Signature : verifier sa propre signature ?
                 ratchet_DH = dh_step2(int(p_ratchet_key,16), self.signed_prekey)
+                self.verify_signature()
 
                 # The first key derivation creates the receiving key
                 derivation_input = root_key + to_bytearray(hex(ratchet_DH))
@@ -601,7 +620,7 @@ if __name__ == "__main__":
     messages = client2.request_messages()
     client2.read_messages(messages)
 
-    print("READIN ALL MESSSAGES")
+    print("READING ALL MESSSAGES")
     client2.read_all_local_message()
     print("READING ALL LOCAL FROM ID= 2")
     client2.read_local_messages_from(2)
