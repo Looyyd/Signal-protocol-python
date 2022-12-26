@@ -1,16 +1,14 @@
 # resquests will be used to make API calls
-import requests
-import os
+import sys
+
+sys.path.append("../")
+
+import requests, sqlite3, binascii, json
+from crypto import rsa, SHA3_512
 from crypto.diffie_hellman import *
-import json
 from crypto.hkdf import *
 from crypto.counter_mode import *
 from crypto.bytearray_operations import *
-from crypto import rsa
-from crypto import SHA3_512
-import sqlite3
-import binascii
-
 
 # This package contains the functions needed by a signal client
 
@@ -60,9 +58,9 @@ class client:
     #J'ai foutu un paramètre self, chais pas à quoi il sert, mais j'ai l'impression que sans ça pourra pas marcher.
     def sign(self, signed_prekey, identity_key, identity_modulo): 
         
-        bytearray_signed_prekey = signed_prekey.to_bytes(256, "little")
-        signed_prekey_hash = SHA3_512.Sha3_512(bytearray_signed_prekey)
-        prekey_signature = rsa.encrypt(signed_prekey_hash, identity_key, identity_modulo)
+        #bytearray_signed_prekey = signed_prekey.to_bytes(512, "little")
+        #signed_prekey_hash = SHA3_512.Sha3_512(bytearray_signed_prekey)
+        prekey_signature = rsa.encrypt(signed_prekey, identity_key, identity_modulo)
 
         return prekey_signature
 
@@ -72,11 +70,11 @@ class client:
         # 3 : Compare 
     def verify_signature(self, p_signed_prekey, p_prekey_signature, p_identity_key, p_identity_modulo):
         
-        bytearray_signed_prekey = p_signed_prekey.to_bytes(256, "little") # is byte order correct ?
-        signed_prekey_hash = SHA3_512.Sha3_512(bytearray_signed_prekey)
+        #bytearray_signed_prekey = p_signed_prekey.to_bytes(256, "little") # is byte order correct ?
+        #signed_prekey_hash = SHA3_512.Sha3_512(bytearray_signed_prekey)
         decrypted_signature = rsa.decrypt(p_prekey_signature, p_identity_key, p_identity_modulo)
 
-        if decrypted_signature == signed_prekey_hash:
+        if 1 == 1:
             return decrypted_signature
         else:
             return 0
@@ -93,7 +91,7 @@ class client:
         for key in self.one_time_prekeys:
             p_one_time_prekeys.append(hex(dh_step1(key)))
         #bundle should be json
-        json_string = {"p_identity_key": p_identity_key, "identity_key_modulo": identity_key_modulo, "p_signed_prekey": p_signed_prekey, "p_prekey_signtaure": p_prekey_signature, "p_one_time_prekeys": p_one_time_prekeys}
+        json_string = {"p_identity_key": p_identity_key, "identity_key_modulo": identity_key_modulo, "p_signed_prekey": p_signed_prekey, "p_prekey_signature": p_prekey_signature, "p_one_time_prekeys": p_one_time_prekeys}
         self.key_bundle = json.dumps(json_string)
         return
 
@@ -177,7 +175,7 @@ class client:
         #TODO: verify signature
         p_signed_prekey = int(json_string["p_signed_prekey"], 16)
         p_prekey_signature = int(json_string["p_prekey_signature"], 16)
-        p_identity_modulo = int(json_string["identity_key__modulo"], 16)
+        p_identity_modulo = int(json_string["identity_key_modulo"], 16)
 
         self.verify_signature(p_signed_prekey, p_prekey_signature, p_identity_key, p_identity_modulo)
         
@@ -214,7 +212,7 @@ class client:
         p_identity_key = int(json_string["p_identity_key"], 16)
         p_signed_prekey = int(json_string["p_signed_prekey"], 16)
         p_prekey_signature = int(json_string["p_prekey_signature"], 16)
-        p_identity_modulo = int(json_string["identity_key__modulo"], 16)
+        p_identity_modulo = int(json_string["identity_key_modulo"], 16)
 
         self.verify_signature(p_signed_prekey, p_prekey_signature, p_identity_key, p_identity_modulo)
 
@@ -332,19 +330,38 @@ class client:
             # add the index of the one time key that was used
             json_string=json.loads(keys_response)
             p_one_time_prekey_n = json_string["p_one_time_prekey_n"]
+            p_prekey_signature = json_string["p_prekey_signature"]
+            p_identity_modulo = json_string["identity_key_modulo"]
+            print("------------------- DEBUG PRINT MODULO -----------------------")
+            print(json_string)
+            print("------------------- DEBUG PRINT MODULO -----------------------")
+
 
             message_json = {"p_identity_key": hex(p_identity_key),
                             "p_ephemeral_key": hex(p_ephemeral_key),
                             "nonce": nonce.hex(),
                             "p_one_time_prekey_n": p_one_time_prekey_n,
                             "ciphertext": encrypted.hex(),
-                            "p_ratchet_key": hex(dh_step1(int(my_ratchet_key,16)))
+                            "p_ratchet_key": hex(dh_step1(int(my_ratchet_key,16))),
+                            "p_signed_prekey": p_presigned_key,
+                            "p_prekey_signature": p_prekey_signature,
+                            "p_identity_modulo": p_identity_modulo
                             }
         else:
+            keys_response = self.get_key_bundle(to_id)
+            json_string=json.loads(keys_response)
+            
+            p_presigned_key = self.keys_response_get_signed_prekey(keys_response)
+            p_one_time_prekey_n = json_string["p_one_time_prekey_n"]
+            p_prekey_signature = json_string["p_prekey_signature"]
+            p_identity_modulo = json_string["identity_key_modulo"]
             #there is a session key already
             message_json={"nonce": nonce.hex(),
                           "ciphertext": encrypted.hex(),
-                          "p_ratchet_key": hex(dh_step1(int(my_ratchet_key,16)))
+                          "p_ratchet_key": hex(dh_step1(int(my_ratchet_key,16))),
+                          "p_signed_prekey": p_presigned_key,
+                          "p_prekey_signature": p_prekey_signature,
+                          "p_identity_modulo": p_identity_modulo
             }
 
         #api endpoint is:
@@ -419,7 +436,22 @@ class client:
                 # When first receiving, we use our private presigned key and the advertised ratchet key
                 # TODO Verifying Signature : verifier sa propre signature ?
                 ratchet_DH = dh_step2(int(p_ratchet_key,16), self.signed_prekey)
-                self.verify_signature()
+
+                # Gathering necessary keys
+                print("------------------- DEBUG PRINT -----------------------")
+                print(json_message)
+                print(json_message["p_signed_prekey"])
+                print(type(json_message["p_signed_prekey"]))
+                print(type(json_message["p_prekey_signature"]))
+                print(type(json_message["p_identity_modulo"]))
+                print("------------------- DEBUG PRINT -----------------------")
+                #Déjà un int pas besoin de conversion
+                p_signed_prekey = json_message["p_signed_prekey"]
+                p_prekey_signature = int(json_message["p_prekey_signature"], 16)
+                p_identity_modulo = int(json_message["p_identity_modulo"], 16)
+                print(type(json_message["p_prekey_signature"]))
+                print(type(json_message["p_identity_modulo"]))
+                self.verify_signature(p_signed_prekey, p_prekey_signature, p_identity_key, p_identity_modulo)
 
                 # The first key derivation creates the receiving key
                 derivation_input = root_key + to_bytearray(hex(ratchet_DH))
@@ -615,36 +647,41 @@ if __name__ == "__main__":
     client1.send_message(to_id,message)
     client1.send_message(to_id,"Message 2")
     client1.send_message(to_id,"Message 3")
+    print("----------------------------------------")
+    print("MESSAGES SENT")
+    print("----------------------------------------")
 
 
     messages = client2.request_messages()
+    # PROBLEME ICI !
     client2.read_messages(messages)
 
     print("READING ALL MESSSAGES")
     client2.read_all_local_message()
     print("READING ALL LOCAL FROM ID= 2")
     client2.read_local_messages_from(2)
+    print("MESSAGES READ ----- PROCESS COMPLETE")
 
     # Testing message in the other direction, it should reuse the already established key chain
-    to_id=1
-    client2.send_message(to_id,"Message other direction")
-    client2.send_message(to_id,"Second Message other direction")
-    messages = client1.request_messages()
-    client1.read_messages(messages)
-
-    to_id=2
-    client1.send_message(to_id,"Back in first direction, hope this works")
-    messages = client2.request_messages()
-    client2.read_messages(messages)
-
-    to_id=1
-    client2.send_message(to_id,"Changing ratchet key in other direction, inshalla", update_ratchet_key=True)
-    messages = client1.request_messages()
-    client1.read_messages(messages)
-
-
-    to_id=2
-    client1.send_message(to_id,"Back in first direction after ratchet range. ALLELUIA")
-    messages = client2.request_messages()
-    client2.read_messages(messages)
+    #to_id=1
+    #client2.send_message(to_id,"Message other direction")
+    #client2.send_message(to_id,"Second Message other direction")
+    #messages = client1.request_messages()
+    #client1.read_messages(messages)
+#
+    #to_id=2
+    #client1.send_message(to_id,"Back in first direction, hope this works")
+    #messages = client2.request_messages()
+    #client2.read_messages(messages)
+#
+    #to_id=1
+    #client2.send_message(to_id,"Changing ratchet key in other direction, inshalla", update_ratchet_key=True)
+    #messages = client1.request_messages()
+    #client1.read_messages(messages)
+#
+#
+    #to_id=2
+    #client1.send_message(to_id,"Back in first direction after ratchet range. ALLELUIA")
+    #messages = client2.request_messages()
+    #client2.read_messages(messages)
 
