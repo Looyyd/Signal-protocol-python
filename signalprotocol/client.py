@@ -243,6 +243,7 @@ class client:
         return row[0][1], row[0][2],  row[0][3], row[0][4], row[0][5],  row[0][6]
 
     #The client needs to be able to send a message to an id
+    # TODO : Utiliser operation CBC pour fichier.
     def send_message(self, to_id, message, update_ratchet_key=False):
         ### Encrypt message
         #Check if sessions key exists
@@ -391,6 +392,15 @@ class client:
         print(request_json)
         response = requests.post(url, json=request_json )
         #not sure what to return for now
+
+        # CHIFFREMENT PAR BLOC DE FICHIERS
+        # 1 : Découper fichier en blocs, utilisable dans la fonction CBC de Filip
+        # 2 : Appeler la fonction CBC, et obtenir une collection de bloc à envoyer par message
+
+        # Pour le format de données, il faudrait surement s'appuyer sur une liste ordonnee, car il faut la lire en sens inverse pour le dechiffrement.
+
+
+
         return response.status_code
 
     def read_messages(self,messages):
@@ -529,6 +539,10 @@ class client:
             print("Message from id ", from_id, ": ", decrypted)
             #  add to local database
             self.add_message_to_local_db(decrypted, from_id)
+
+            # LECTURE FICHIER CBC
+            # 1 : Recuperer la collection de blocs chiffres
+            # 2 : Commencer dechiffrement
 
     def add_message_to_local_db(self, message, from_id):
         # create database if it doesn't exist
