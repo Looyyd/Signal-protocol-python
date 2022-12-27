@@ -166,6 +166,26 @@ def test_pgcd():
     assert type(result) == int
     assert result == 5
 
+def test_HASHING_TO_SIGN():
+
+    with pytest.raises(TypeError):
+        HASHING_TO_SIGN("Test")
+        HASHING_TO_SIGN(2.3)
+        HASHING_TO_SIGN(1j)
+        HASHING_TO_SIGN([2, 3])
+        HASHING_TO_SIGN((2, 3))
+        HASHING_TO_SIGN(range(3))
+        HASHING_TO_SIGN({"number": 2})
+        HASHING_TO_SIGN({2, 3})
+        HASHING_TO_SIGN(frozenset(2, 3))
+        HASHING_TO_SIGN(True)
+        HASHING_TO_SIGN(bytes(2))
+        HASHING_TO_SIGN(bytearray(2))
+        HASHING_TO_SIGN(memoryview(bytes(2)))
+
+    result = HASHING_TO_SIGN(151)
+    assert type(result) == int
+
 def test_generate_keys():
 
     pubkey, privkey, n = generate_keys()
