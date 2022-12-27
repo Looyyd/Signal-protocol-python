@@ -54,27 +54,10 @@ class client:
         # 1 : Int to bytearray to use SHA
         # 2 : Create hash of signed_prekey
         # 3 : Use RSA encryption with LIFETIME_priv_key to create signature
-    
-    #TODO : POUR FINIR LA SIGNATURE, IL FAUT TROUVER UN MOYEN DE FAIRE UNE CONVERSION INT TO BYTEARRAY ET VICE VERSA, UNE FOIS CETTE FONCTION 
-    #DISPONIBLE ET FONCTIONNELLE DE BOUT EN BOUT, ET SUFFISANTE A ELLE MEME, LA SIGNATURE SERA PARFAITEMENT OPERATIONNELLE
     def sign(self, signed_prekey, identity_key, identity_modulo): 
         
-        # HASH VERSION
-        #str_signed_prekey = str(signed_prekey)
-        #bytearray_signed_prekey = bytearray(str_signed_prekey, "utf-8")
-        #signed_prekey_hash = SHA3_512.Sha3_512(bytearray_signed_prekey)
-        #int_signed_prekey_hash = int(signed_prekey_hash)
-
-        #HASH VERSION METHODE FILIP
-        #print(signed_prekey)
-        #print("XX long", len((str(signed_prekey))))
-        #signed_prekey_hash = bytearray(signed_prekey, 256)
-        #print(type(signed_prekey_hash))
-        #print(signed_prekey_hash)
-
-        #bytearray_signed_prekey = signed_prekey.to_bytes(512, "little")
-        #signed_prekey_hash = SHA3_512.Sha3_512(bytearray_signed_prekey)
-        prekey_signature = rsa.encrypt(signed_prekey, identity_key, identity_modulo)
+        signed_prekey_hash = rsa.HASHING_TO_SIGN(signed_prekey)
+        prekey_signature = rsa.encrypt(signed_prekey_hash, identity_key, identity_modulo)
 
         return prekey_signature
 
@@ -84,17 +67,10 @@ class client:
         # 3 : Compare 
     def verify_signature(self, p_signed_prekey, p_prekey_signature, p_identity_key, p_identity_modulo):
 
-        #HASH VERSION
-        #str_signed_prekey = str(p_signed_prekey)
-        #bytearray_signed_prekey = bytearray(str_signed_prekey, "utf-8")
-        #signed_prekey_hash = SHA3_512.Sha3_512(bytearray_signed_prekey)
-        #int_signed_prekey_hash = int(signed_prekey_hash)
-        
-        #bytearray_signed_prekey = p_signed_prekey.to_bytes(256, "little") # is byte order correct ?
-        #signed_prekey_hash = SHA3_512.Sha3_512(bytearray_signed_prekey)
+        signed_prekey_hash = rsa.HASHING_TO_SIGN(p_signed_prekey)
         decrypted_signature = rsa.decrypt(p_prekey_signature, p_identity_key, p_identity_modulo)
 
-        if p_signed_prekey == decrypted_signature:
+        if signed_prekey_hash == decrypted_signature:
             return decrypted_signature
         else:
             return 0

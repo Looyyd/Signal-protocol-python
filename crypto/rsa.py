@@ -1,12 +1,13 @@
 # This file is entirely dedicated to cryptographic operations linked to RSA
-import numpy, random, time, os, sys
+import numpy, random, time, os, sys, base64
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
 
 from crypto import first_10000_primes
+from crypto.SHA3_512 import Sha3_512
 
 
-# Basic encryptio/decryption functions
+# Basic encryption/decryption functions
 
 def encrypt(message: int, priv_key: int, mod: int)-> int:
     # Encrypt a message using RSA scheme
@@ -15,6 +16,23 @@ def encrypt(message: int, priv_key: int, mod: int)-> int:
 def decrypt(ciphermessage: int, pub_key: int, mod: int)-> int:
     # Decrypt a message using RSA scheme
     return pow(ciphermessage,pub_key,mod)
+
+# Methods for sign and unsign
+
+def HASHING_TO_SIGN(key: int)-> int:
+
+    # From int to bytearray
+    str_key = str(key)
+    bytearray_str_key = bytearray(str_key, "utf-8")
+
+    # Hash computation
+    key_hash = Sha3_512(bytearray_str_key)
+
+    #From bytearray to int
+    byte_key_hash = base64.b64encode(key_hash)
+    int_key_hash = int.from_bytes(byte_key_hash, "little")
+
+    return int_key_hash
 
 # To calculate keys, we need 4 steps : 
 # S1 : Find to large prime number (in terms of bytes representation) p and q
@@ -111,28 +129,29 @@ def generate_keys():
 
 
 if __name__ == "__main__":
-    exe_time = []
-    moy_el_time = 0
-    for i in range (1000):
-        start_time = time.time()
-        (pub, priv, mod) = generate_keys()
-        m = 10
-        c = encrypt(m, priv, mod)
-        n = decrypt(c, pub, mod)
-        print("Message", n)
-        print("---------------------------------------------------------------------------------------------")
-        print("Public Key", pub)
-        print("---------------------------------------------------------------------------------------------")
-        print("Private Key",priv)
-        elapsed_time = time.time() - start_time
-        print("---------------------------------------------------------------------------------------------")
-        print("Elapsed time during execution : ", elapsed_time)
-        print("---------------------------------------------------------------------------------------------")
-        print(i)
+    #exe_time = []
+    #moy_el_time = 0
+    #for i in range (1000):
+    #    start_time = time.time()
+    #    (pub, priv, mod) = generate_keys()
+    #    m = 10
+    #    c = encrypt(m, priv, mod)
+    #    n = decrypt(c, pub, mod)
+    #    print("Message", n)
+    #    print("---------------------------------------------------------------------------------------------")
+    #    print("Public Key", pub)
+    #    print("---------------------------------------------------------------------------------------------")
+    #    print("Private Key",priv)
+    #    elapsed_time = time.time() - start_time
+    #    print("---------------------------------------------------------------------------------------------")
+    #    print("Elapsed time during execution : ", elapsed_time)
+    #    print("---------------------------------------------------------------------------------------------")
+    #    print(i)
+#
+    #    exe_time.append(elapsed_time)
+    #    moy_el_time = moy_el_time + exe_time[i]
+#
+    #moy_el_time //= 1000
+    #print("Mean execution time : ", moy_el_time)
 
-        exe_time.append(elapsed_time)
-        moy_el_time = moy_el_time + exe_time[i]
-
-    moy_el_time //= 1000
-    print("Mean execution time : ", moy_el_time)
-
+    print("LOL")
