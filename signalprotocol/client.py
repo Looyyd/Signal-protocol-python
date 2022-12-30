@@ -1,5 +1,5 @@
 # resquests will be used to make API calls
-import sys
+import sys, os
 
 sys.path.append("../")
 
@@ -9,6 +9,8 @@ from crypto.diffie_hellman import *
 from crypto.hkdf import *
 from crypto.counter_mode import *
 from crypto.bytearray_operations import *
+from crypto.cbc_mode import read_file, cbc_mode_aes_decrypt, cbc_mode_aes_encrypt, AES_BLOCK_SIZE_BYTES
+from secrets import token_bytes
 
 # This package contains the functions needed by a signal client
 
@@ -220,7 +222,7 @@ class client:
 
     #The client needs to be able to send a message to an id
     # TODO : Utiliser operation CBC pour fichier.
-    def send_message(self, to_id, message, update_ratchet_key=False):
+    def send_message(self, to_id, message, isFile: bool, update_ratchet_key=False):
         ### Encrypt message
         #Check if sessions key exists
         rows = self.get_local_session_keys_from_db(to_id)
@@ -310,15 +312,23 @@ class client:
         self.update_sessions_keys_in_local_db(to_id,sending_key_chain, receiving_key_chain, root_key_chain,
                                               p_ratchet_key, my_ratchet_key, expecting_new_ratchet)
 
+
         # counter mode encrypt the message with session key
         nonce = token_bytes(16)
         # session key is 512 bits, take half of it
         aes_session_key = encryption_key[0:AES_KEY_SIZE//8]
-        stream = counter_mode_aes(len(message) * 8 // 128 + 1, nonce, aes_session_key)
-        # message needs to be a bytearray
-        message = to_bytearray(message)
-        # stream cipher
-        encrypted = xor(message, stream)
+
+        # Du coup, j'ai dit de la merde, c'est prêt. C'est ici que je détecte si c'est un file ou pas, et que j'appellele mode CBC (FAIRE FONCTION LECTURE MESSAGE)
+        if isFile == True :
+            plaintext = read_file(message)
+            iv = token_bytes(AES_BLOCK_SIZE_BYTES)
+            encrypted = cbc_mode_aes_encrypt(plaintext, iv, aes_session_key)
+        else:
+            stream = counter_mode_aes(len(message) * 8 // 128 + 1, nonce, aes_session_key)
+            # message needs to be a bytearray
+            message = to_bytearray(message)
+            # stream cipher
+            encrypted = xor(message, stream)
 
         if no_session_key:
             # ephermeral public key generation
@@ -344,6 +354,12 @@ class client:
                             "p_prekey_signature": p_prekey_signature,
                             "p_identity_modulo": p_identity_modulo
                             }
+            if isFile == True:
+                print("------------------- DEBUG PRINT IV -----------------------")
+                print(iv)
+                print(type(iv))
+                print("------------------- DEBUG PRINT IV -----------------------")
+                message_json["iv"] = iv.hex()
         else:
             keys_response = self.get_key_bundle(to_id)
             json_string=json.loads(keys_response)
@@ -360,22 +376,24 @@ class client:
                           "p_prekey_signature": p_prekey_signature,
                           "p_identity_modulo": p_identity_modulo
             }
+            if isFile == True:
+                print("------------------- DEBUG PRINT IV -----------------------")
+                print(iv)
+                print(type(iv))
+                print("------------------- DEBUG PRINT IV -----------------------")
+                message_json["iv"] = iv.hex()
 
         #api endpoint is:
         url = "http://" + self.server_ip + ":" + str(self.server_port) + "/message"
+        print("------------------- DEBUG PRINT FILE SENDING -----------------------")
+        print(message_json)
+        print(type(message_json))
+        print("------------------- DEBUG PRINT FILE SENDING -----------------------")
         request_json = {"to_id": to_id, "from_id": self.id, "message": json.dumps(message_json)}
         print(message_json)
         print(request_json)
         response = requests.post(url, json=request_json )
         #not sure what to return for now
-
-        # CHIFFREMENT PAR BLOC DE FICHIERS
-        # 1 : Découper fichier en blocs, utilisable dans la fonction CBC de Filip
-        # 2 : Appeler la fonction CBC, et obtenir une collection de bloc à envoyer par message
-
-        # Pour le format de données, il faudrait surement s'appuyer sur une liste ordonnee, car il faut la lire en sens inverse pour le dechiffrement.
-
-
 
         return response.status_code
 
@@ -507,18 +525,36 @@ class client:
                                                   p_ratchet_key, my_ratchet_key, expecting_ratchet)
 
             aes_session_key = encryption_key
-            stream = counter_mode_aes(len(ciphertext) * 8 // 128 + 1, nonce, aes_session_key)
-            # message needs to be a bytearray
-            ciphertext = to_bytearray(ciphertext)
-            # stream cipher
-            decrypted = xor(ciphertext, stream)
-            print("Message from id ", from_id, ": ", decrypted)
-            #  add to local database
-            self.add_message_to_local_db(decrypted, from_id)
 
-            # LECTURE FICHIER CBC
-            # 1 : Recuperer la collection de blocs chiffres
-            # 2 : Commencer dechiffrement
+            # Detection fichier ????
+            #print("------------------- DEBUG PRINT READING CBC -----------------------")
+            #print("JSON MESSAGE : ", json_message)
+            #print("------------------- DEBUG PRINT READING CBC-----------------------")
+            if "iv" in json_message:
+                iv = json_message["iv"]
+                #REMETTRE EN FORMAT BYTESARRAY SINON PASSE PAS, normalement ?
+                iv = bytearray.fromhex(iv)
+                #print("------------------- DEBUG PRINT IV -----------------------")
+                #print(iv)
+                #print(type(iv))
+                #print("------------------- DEBUG PRINT IV -----------------------")
+                decrypted = cbc_mode_aes_decrypt(ciphertext, iv, aes_session_key)
+                #print("------------------- DEBUG PRINT IV -----------------------")
+                #print("TEXTFILE : ", decrypted)
+                #print("------------------- DEBUG PRINT FILE -----------------------")
+                print("Message from id ", from_id, ": ", decrypted)
+                self.add_message_to_local_db(decrypted, from_id)
+
+                
+            else:
+                stream = counter_mode_aes(len(ciphertext) * 8 // 128 + 1, nonce, aes_session_key)
+                # message needs to be a bytearray
+                ciphertext = to_bytearray(ciphertext)
+                # stream cipher
+                decrypted = xor(ciphertext, stream)
+                print("Message from id ", from_id, ": ", decrypted)
+                #  add to local database
+                self.add_message_to_local_db(decrypted, from_id)
 
     def add_message_to_local_db(self, message, from_id):
         # create database if it doesn't exist
@@ -641,6 +677,7 @@ if __name__ == "__main__":
     #os.environ['FLASK_ENV'] = 'development'
     #os.system("flask run")
 
+    file_path = "/home/bastien/test-clone-gs15/Signal-protocol-python/crypto/file.txt"
 
     id_client2 = 2
     client2 = client(id_client2)
@@ -654,9 +691,10 @@ if __name__ == "__main__":
     keys_response = client1.get_key_bundle(client1.id)
     to_id = 2
     #print return code
-    client1.send_message(to_id,message)
-    client1.send_message(to_id,"Message 2")
-    client1.send_message(to_id,"Message 3")
+    
+    client1.send_message(to_id,message, False)
+    client1.send_message(to_id,"Message 2", False)
+    client1.send_message(to_id,file_path, True)
     print("----------------------------------------")
     print("MESSAGES SENT")
     print("----------------------------------------")

@@ -1,11 +1,10 @@
-import aes, os
+import sys, os
+
+sys.path.append("../")
+
+from crypto.aes import *
 from secrets import token_bytes
-from bytearray_operations import xor, to_bytearray
-
-# Parce que sinon il veut pas lire les fichiers cet enculé
-dir_path = os.path.dirname(os.path.realpath(__file__))
-file_path = os.path.join(dir_path, "file.txt")
-
+from crypto.bytearray_operations import xor, to_bytearray
 
 AES_BLOCK_SIZE = 128
 AES_BLOCK_SIZE_BYTES = AES_BLOCK_SIZE//8
@@ -53,7 +52,7 @@ def cbc_mode_aes_encrypt(plaintext, iv, key):
     output = bytearray()
     for i in range(0, size):
         bloc = xor(previous_ct, plaintext[i*(AES_BLOCK_SIZE_BYTES):(i+1) * (AES_BLOCK_SIZE_BYTES)])
-        ct = aes.aes(bloc, key)
+        ct = aes(bloc, key)
         output.extend(ct)
         previous_ct = ct
 
@@ -71,7 +70,7 @@ def cbc_mode_aes_decrypt(ciphertext, iv, key):
 
     for i in range(0, size):
         bloc= ciphertext[i*(AES_BLOCK_SIZE_BYTES):(i+1) * (AES_BLOCK_SIZE_BYTES)]
-        plaintext.extend(xor(previous_ct, aes.inv_aes(bloc, key)))
+        plaintext.extend(xor(previous_ct, inv_aes(bloc, key)))
         previous_ct = bloc
 
     print("DECRYPTED : ", plaintext)
@@ -86,16 +85,20 @@ def cbc_mode_aes_decrypt(ciphertext, iv, key):
 
     return plaintext
 
-
-
-
-if __name__ == "__main__":
+def read_file(file: str):
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    file_path = os.path.join(dir_path, file)
 
     with open(file_path) as f:
         lines = f.readlines()
 
     plaintext = lines
     plaintext = str(plaintext)
+    return plaintext
+
+if __name__ == "__main__":
+
+    plaintext = read_file("file.txt")
     iv = token_bytes(AES_BLOCK_SIZE_BYTES)
     key = token_bytes(aes.AES_KEY_SIZE_BYTES)
 
