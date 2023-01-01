@@ -135,7 +135,6 @@ def generate_keys():
 
     priv_key = pow(pub_key,-1,ind_n)
 
-    print("---------------------------------------")
     print("Public key : ", pub_key, "You won't get the private key... Because it's meant to be secret ;)")
     print("---------------------------------------")
     return pub_key, priv_key, n
