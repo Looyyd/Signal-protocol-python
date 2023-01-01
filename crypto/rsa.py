@@ -40,6 +40,9 @@ def HASHING_TO_SIGN(key: int)-> int:
 # S3 : create public key (must not be a factor of E(n)) pubkey
 # S4 : create private key = pubkey^-1
 
+# Number generation is based on the following source : 
+# How to Generate Large Prime Numbers, GeeksForGeeks : https://www.geeksforgeeks.org/how-to-generate-large-prime-numbers-for-rsa-algorithm/
+
 def large_odd_number()-> int:
     #Generating a 2048 bits long number
     p = random.randrange(2**(2048-1)+1, 2**2048-1, 2)
@@ -73,6 +76,12 @@ def check_primality(n: int):
         if n % p == 0: return False
     
     #Rabin-Miller test
+
+    # This Rabin-Miller code has been created with the help of the following sources : 
+    # How to Generate Large Prime Numbers, GeeksForGeeks : https://www.geeksforgeeks.org/how-to-generate-large-prime-numbers-for-rsa-algorithm/
+    # Rabin-Miller Primality test, Wikipedia : https://en.wikipedia.org/wiki/Miller%E2%80%93Rabin_primality_test
+    # Rabin-Miller implementation won't work, Stack Overflow : https://stackoverflow.com/questions/14613304/rabin-miller-strong-pseudoprime-test-implementation-wont-work
+
     r, s = 0, n - 1
     while s % 2 == 0:
         r += 1
@@ -107,13 +116,15 @@ def pgcd(m: int, n: int)-> int:
 # This function generates public and associated private keys
 def generate_keys():
 
-    print("generating primes")
+    print("Generating prime numbers for RSA keys")
+    print("---------------------------------------")
     p = large_prime_number()
     q = large_prime_number()
     while p == q :
         q=large_prime_number()
 
-    print("calculating")
+    print("Calculating keys")
+    print("---------------------------------------")
     n = p*q
     ind_n = (p-1)*(q-1)
 
@@ -124,34 +135,36 @@ def generate_keys():
 
     priv_key = pow(pub_key,-1,ind_n)
 
+    print("---------------------------------------")
+    print("Public key : ", pub_key, "You won't get the private key... Because it's meant to be secret ;)")
+    print("---------------------------------------")
     return pub_key, priv_key, n
 
 
 
 if __name__ == "__main__":
-    #exe_time = []
-    #moy_el_time = 0
-    #for i in range (1000):
-    #    start_time = time.time()
-    #    (pub, priv, mod) = generate_keys()
-    #    m = 10
-    #    c = encrypt(m, priv, mod)
-    #    n = decrypt(c, pub, mod)
-    #    print("Message", n)
-    #    print("---------------------------------------------------------------------------------------------")
-    #    print("Public Key", pub)
-    #    print("---------------------------------------------------------------------------------------------")
-    #    print("Private Key",priv)
-    #    elapsed_time = time.time() - start_time
-    #    print("---------------------------------------------------------------------------------------------")
-    #    print("Elapsed time during execution : ", elapsed_time)
-    #    print("---------------------------------------------------------------------------------------------")
-    #    print(i)
-#
-    #    exe_time.append(elapsed_time)
-    #    moy_el_time = moy_el_time + exe_time[i]
-#
-    #moy_el_time //= 1000
-    #print("Mean execution time : ", moy_el_time)
+    exe_time = []
+    moy_el_time = 0
+    for i in range (1000):
+        start_time = time.time()
+        (pub, priv, mod) = generate_keys()
+        m = 10
+        c = encrypt(m, priv, mod)
+        n = decrypt(c, pub, mod)
+        print("Message", n)
+        print("---------------------------------------------------------------------------------------------")
+        print("Public Key", pub)
+        print("---------------------------------------------------------------------------------------------")
+        print("Private Key",priv)
+        elapsed_time = time.time() - start_time
+        print("---------------------------------------------------------------------------------------------")
+        print("Elapsed time during execution : ", elapsed_time)
+        print("---------------------------------------------------------------------------------------------")
+        print(i)
 
-    print("LOL")
+        exe_time.append(elapsed_time)
+        moy_el_time = moy_el_time + exe_time[i]
+
+    moy_el_time //= 1000
+    print("Mean execution time : ", moy_el_time)
+
