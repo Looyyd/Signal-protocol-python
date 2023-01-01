@@ -23,10 +23,10 @@ def cbc_mode_aes_encrypt(plaintext, iv, key):
     # needs to be a multiple of block size
     # JE laisse les comms pour vérifier les modifs, effacer les coms et les prints plus tard
     # Ici on print les infos avant traitement
-    print("OLD BYTEARRAY : ", plaintext)
-    print(type(plaintext))
-    print(len(plaintext))
-    print(AES_BLOCK_SIZE_BYTES)
+    #print("OLD BYTEARRAY : ", plaintext)
+    #print(type(plaintext))
+    #print(len(plaintext))
+    #print(AES_BLOCK_SIZE_BYTES)
     #assert(len(plaintext) % (AES_BLOCK_SIZE_BYTES) ==0) | A apres traitement eventuellement
     # On dectecte si la longueur du texte est un multiple du block size
     MOD = len(plaintext) % (AES_BLOCK_SIZE_BYTES)
@@ -42,12 +42,12 @@ def cbc_mode_aes_encrypt(plaintext, iv, key):
     for i in range (PAD):
         plaintext.append(0)
     # On obtient ici notre nouvel array 
-    print("NEW BYTEARRAY : ", plaintext)
-    print(type(plaintext))
-    print(len(plaintext))
+    #print("NEW BYTEARRAY : ", plaintext)
+    #print(type(plaintext))
+    #print(len(plaintext))
     # Infos remanentes sur le nb de bloc et le padding
-    print("Number of Block : ", size)
-    print("PADDING : ", PAD)
+    #print("Number of Block : ", size)
+    #print("PADDING : ", PAD)
     previous_ct = iv
     output = bytearray()
     for i in range(0, size):
@@ -61,8 +61,8 @@ def cbc_mode_aes_encrypt(plaintext, iv, key):
 def cbc_mode_aes_decrypt(ciphertext, iv, key):
     ciphertext = to_bytearray(ciphertext)
     assert (len(ciphertext) % (AES_BLOCK_SIZE_BYTES) == 0)
-    print("TAILLE CIPHERTEXT")
-    print(len(ciphertext))
+    #print("TAILLE CIPHERTEXT")
+    #print(len(ciphertext))
     size = len(ciphertext) // (AES_BLOCK_SIZE_BYTES)
 
     previous_ct = iv
@@ -73,15 +73,15 @@ def cbc_mode_aes_decrypt(ciphertext, iv, key):
         plaintext.extend(xor(previous_ct, inv_aes(bloc, key)))
         previous_ct = bloc
 
-    print("DECRYPTED : ", plaintext)
-    print(type(plaintext))
+    #print("DECRYPTED : ", plaintext)
+    #print(type(plaintext))
     #Faire traitement sur plaintext ici
     for i in reversed(plaintext):
         if i == 0:
             plaintext.pop()
         else:
             break
-    print("NEW DECRYPTED : ", plaintext)
+    #print("NEW DECRYPTED : ", plaintext)
 
     return plaintext
 

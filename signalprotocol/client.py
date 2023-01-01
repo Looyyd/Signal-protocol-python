@@ -46,6 +46,7 @@ class client:
 
     #The client needs to be able to register to the server, ie send their key bundle to the server
     def register(self):
+        print("Registring Client")
         self.generate_keys()
         self.send_key_bundle()
         return
@@ -166,9 +167,9 @@ class client:
     def create_root_key_when_sending(self, keys_response, ephemeral_key):
         # parse the response for keys
         #row array then second column
-        print("keys_response:", keys_response)
+        #print("keys_response:", keys_response)
         json_string=json.loads(keys_response)
-        print("json_keys_string=", json_string)
+        #print("json_keys_string=", json_string)
         p_identity_key = int(json_string["p_identity_key"], 16)
         #TODO: verify signature
         p_signed_prekey = int(json_string["p_signed_prekey"], 16)
@@ -226,7 +227,7 @@ class client:
         ### Encrypt message
         #Check if sessions key exists
         rows = self.get_local_session_keys_from_db(to_id)
-        print("ROWS = ", rows)
+        #print("ROWS = ", rows)
 
         if len(rows)==0:
             # New destination
@@ -273,8 +274,8 @@ class client:
             sending_key_chain, receiving_key_chain, root_key_chain,\
                 p_ratchet_key, my_ratchet_key, expecting_new_ratchet= self.table_row_to_key_chains(rows)
 
-            print("ROWS WHEN SENDING")
-            print(rows)
+            #print("ROWS WHEN SENDING")
+            #print(rows)
             if len(sending_key_chain) == 0 or update_ratchet_key==True:
                 # we need to generate new key chains
                 # because we received somthing using our presigned key only
@@ -323,12 +324,16 @@ class client:
             plaintext = read_file(message)
             iv = token_bytes(AES_BLOCK_SIZE_BYTES)
             encrypted = cbc_mode_aes_encrypt(plaintext, iv, aes_session_key)
+            print("Message : ", plaintext)
+            print("Encrypted message : ", encrypted)
         else:
             stream = counter_mode_aes(len(message) * 8 // 128 + 1, nonce, aes_session_key)
             # message needs to be a bytearray
             message = to_bytearray(message)
             # stream cipher
             encrypted = xor(message, stream)
+            print("Message : ", message)
+            print("Encrypted message : ", encrypted)
 
         if no_session_key:
             # ephermeral public key generation
@@ -339,10 +344,6 @@ class client:
             p_one_time_prekey_n = json_string["p_one_time_prekey_n"]
             p_prekey_signature = json_string["p_prekey_signature"]
             p_identity_modulo = json_string["identity_key_modulo"]
-            print("------------------- DEBUG PRINT MODULO -----------------------")
-            print(json_string)
-            print("------------------- DEBUG PRINT MODULO -----------------------")
-
 
             message_json = {"p_identity_key": hex(p_identity_key),
                             "p_ephemeral_key": hex(p_ephemeral_key),
@@ -355,10 +356,6 @@ class client:
                             "p_identity_modulo": p_identity_modulo
                             }
             if isFile == True:
-                print("------------------- DEBUG PRINT IV -----------------------")
-                print(iv)
-                print(type(iv))
-                print("------------------- DEBUG PRINT IV -----------------------")
                 message_json["iv"] = iv.hex()
         else:
             keys_response = self.get_key_bundle(to_id)
@@ -377,21 +374,13 @@ class client:
                           "p_identity_modulo": p_identity_modulo
             }
             if isFile == True:
-                print("------------------- DEBUG PRINT IV -----------------------")
-                print(iv)
-                print(type(iv))
-                print("------------------- DEBUG PRINT IV -----------------------")
                 message_json["iv"] = iv.hex()
 
         #api endpoint is:
         url = "http://" + self.server_ip + ":" + str(self.server_port) + "/message"
-        print("------------------- DEBUG PRINT FILE SENDING -----------------------")
-        print(message_json)
-        print(type(message_json))
-        print("------------------- DEBUG PRINT FILE SENDING -----------------------")
         request_json = {"to_id": to_id, "from_id": self.id, "message": json.dumps(message_json)}
-        print(message_json)
-        print(request_json)
+        #print(message_json)
+        #print(request_json)
         response = requests.post(url, json=request_json )
         #not sure what to return for now
 
@@ -400,8 +389,8 @@ class client:
     def read_messages(self,messages):
         for msg in messages:
             from_id = msg[2]
-            print("WHILE READING from id is:", from_id)
-            print("MESSAGE IS:", msg)
+            #print("WHILE READING from id is:", from_id)
+            #print("MESSAGE IS:", msg)
             txt = msg[3]
             json_message = json.loads(txt)
             nonce = to_bytearray( bytearray.fromhex(json_message["nonce"]))
@@ -411,7 +400,7 @@ class client:
             expecting_ratchet = False
             # check if session_key_already exists
             rows = self.get_local_session_keys_from_db(from_id)
-            print(rows)
+            #print(rows)
             if (len(rows)==0):
                 # create the key chains
 
@@ -462,19 +451,12 @@ class client:
                 ratchet_DH = dh_step2(int(p_ratchet_key,16), self.signed_prekey)
 
                 # Gathering necessary keys
-                print("------------------- DEBUG PRINT -----------------------")
-                print(json_message)
-                print(json_message["p_signed_prekey"])
-                print(type(json_message["p_signed_prekey"]))
-                print(type(json_message["p_prekey_signature"]))
-                print(type(json_message["p_identity_modulo"]))
-                print("------------------- DEBUG PRINT -----------------------")
                 #Déjà un int pas besoin de conversion
                 p_signed_prekey = json_message["p_signed_prekey"]
                 p_prekey_signature = int(json_message["p_prekey_signature"], 16)
                 p_identity_modulo = int(json_message["p_identity_modulo"], 16)
-                print(type(json_message["p_prekey_signature"]))
-                print(type(json_message["p_identity_modulo"]))
+                #print(type(json_message["p_prekey_signature"]))
+                #print(type(json_message["p_identity_modulo"]))
                 self.verify_signature(p_signed_prekey, p_prekey_signature, p_identity_key, p_identity_modulo)
 
                 # The first key derivation creates the receiving key
@@ -495,8 +477,9 @@ class client:
 
                 p_ratchet_key = json_message["p_ratchet_key"]
 
-                print("Ratchet in memory :", p_ratchet_key_memory)
-                print("Ratchet received : ", p_ratchet_key)
+                # Montrer ca ?
+                #print("Ratchet in memory :", p_ratchet_key_memory)
+                #print("Ratchet received : ", p_ratchet_key)
 
                 # check if ratchet  key has change
                 if (p_ratchet_key != p_ratchet_key_memory):
@@ -526,23 +509,13 @@ class client:
 
             aes_session_key = encryption_key
 
-            # Detection fichier ????
-            #print("------------------- DEBUG PRINT READING CBC -----------------------")
-            #print("JSON MESSAGE : ", json_message)
-            #print("------------------- DEBUG PRINT READING CBC-----------------------")
             if "iv" in json_message:
                 iv = json_message["iv"]
-                #REMETTRE EN FORMAT BYTESARRAY SINON PASSE PAS, normalement ?
                 iv = bytearray.fromhex(iv)
-                #print("------------------- DEBUG PRINT IV -----------------------")
-                #print(iv)
-                #print(type(iv))
-                #print("------------------- DEBUG PRINT IV -----------------------")
                 decrypted = cbc_mode_aes_decrypt(ciphertext, iv, aes_session_key)
-                #print("------------------- DEBUG PRINT IV -----------------------")
-                #print("TEXTFILE : ", decrypted)
-                #print("------------------- DEBUG PRINT FILE -----------------------")
-                print("Message from id ", from_id, ": ", decrypted)
+                print("Encrypted message : ", ciphertext)
+                print("Message from id ", from_id, " : ", decrypted)
+                #print("Message from id ", from_id, ": ", decrypted)
                 self.add_message_to_local_db(decrypted, from_id)
 
                 
@@ -552,7 +525,9 @@ class client:
                 ciphertext = to_bytearray(ciphertext)
                 # stream cipher
                 decrypted = xor(ciphertext, stream)
-                print("Message from id ", from_id, ": ", decrypted)
+                print("Encrypted message : ", ciphertext)
+                print("Message from id ", from_id, " : ", decrypted)
+                #print("Message from id ", from_id, ": ", decrypted)
                 #  add to local database
                 self.add_message_to_local_db(decrypted, from_id)
 
@@ -574,7 +549,7 @@ class client:
 
     #returns row of database corresponding to form_id, returns empty row if not in db
     def get_local_session_keys_from_db(self, from_id):
-        print("GETTING key with id", from_id )
+        #print("GETTING key with id", from_id )
         #create if doesn't exist
         self.create_local_db()
         # print all messages from local database
@@ -591,7 +566,7 @@ class client:
     def update_sessions_keys_in_local_db\
                     (self, id, sending_key_chain, receiving_key_chain, root_key_chain,
                      p_ratchet_key, my_ratchet_key, expecting_new_ratchet):
-        print("UPDATING key with id", id )
+        #print("UPDATING key with id", id )
         conn = sqlite3.connect(self.db_name)
         c = conn.cursor()
         #update aka insert or replace
@@ -712,24 +687,24 @@ if __name__ == "__main__":
 
     # Testing message in the other direction, it should reuse the already established key chain
     to_id=1
-    client2.send_message(to_id,"Message other direction", isFile=False)
-    client2.send_message(to_id,"Second Message other direction", isFile=False)
+    client2.send_message(to_id,"Message other direction", False)
+    client2.send_message(to_id,"Second Message other direction", False)
     messages = client1.request_messages()
     client1.read_messages(messages)
 
     to_id=2
-    client1.send_message(to_id,"Back in first direction, hope this works", isFile=False)
+    client1.send_message(to_id,"Back in first direction, hope this works", False)
     messages = client2.request_messages()
     client2.read_messages(messages)
 
     to_id=1
-    client2.send_message(to_id,"Changing ratchet key in other direction, inshalla", isFile=False, update_ratchet_key=True)
+    client2.send_message(to_id,"Changing ratchet key in other direction, inshalla", False, update_ratchet_key=True)
     messages = client1.request_messages()
     client1.read_messages(messages)
 
 
     to_id=2
-    client1.send_message(to_id,"Back in first direction after ratchet range. ALLELUIA", isFile=False)
+    client1.send_message(to_id,"Back in first direction after ratchet range. ALLELUIA", False)
     messages = client2.request_messages()
     client2.read_messages(messages)
 
