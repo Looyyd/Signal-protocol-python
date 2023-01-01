@@ -711,25 +711,25 @@ if __name__ == "__main__":
     print("MESSAGES READ ----- PROCESS COMPLETE")
 
     # Testing message in the other direction, it should reuse the already established key chain
-    #to_id=1
-    #client2.send_message(to_id,"Message other direction")
-    #client2.send_message(to_id,"Second Message other direction")
-    #messages = client1.request_messages()
-    #client1.read_messages(messages)
-#
-    #to_id=2
-    #client1.send_message(to_id,"Back in first direction, hope this works")
-    #messages = client2.request_messages()
-    #client2.read_messages(messages)
-#
-    #to_id=1
-    #client2.send_message(to_id,"Changing ratchet key in other direction, inshalla", update_ratchet_key=True)
-    #messages = client1.request_messages()
-    #client1.read_messages(messages)
-#
-#
-    #to_id=2
-    #client1.send_message(to_id,"Back in first direction after ratchet range. ALLELUIA")
-    #messages = client2.request_messages()
-    #client2.read_messages(messages)
+    to_id=1
+    client2.send_message(to_id,"Message other direction", isFile=False)
+    client2.send_message(to_id,"Second Message other direction", isFile=False)
+    messages = client1.request_messages()
+    client1.read_messages(messages)
+
+    to_id=2
+    client1.send_message(to_id,"Back in first direction, hope this works", isFile=False)
+    messages = client2.request_messages()
+    client2.read_messages(messages)
+
+    to_id=1
+    client2.send_message(to_id,"Changing ratchet key in other direction, inshalla", isFile=False, update_ratchet_key=True)
+    messages = client1.request_messages()
+    client1.read_messages(messages)
+
+
+    to_id=2
+    client1.send_message(to_id,"Back in first direction after ratchet range. ALLELUIA", isFile=False)
+    messages = client2.request_messages()
+    client2.read_messages(messages)
 
