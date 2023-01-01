@@ -1,6 +1,6 @@
 from signalprotocol.client import *
 
-file_path = "/home/bastien/test-clone-gs15/Signal-protocol-python/crypto/file.txt"
+file_path = "file.txt"
 
 print("----------------------------------------")
 print("      Initiliating clients and keys     ")
