@@ -1,6 +1,7 @@
 # Signal-protocol-python
 
 This is a project done in the context of a graduate course in cryptography
+WARNING: this project probably contains flaws and shouldn't be used in a production environment.
 
 The aim of this project was to implement the Signal protocol in python from scratch
 
