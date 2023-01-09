@@ -1,6 +1,6 @@
 from signalprotocol.client import *
 
-file_path = "/home/bastien/test-clone-gs15/Signal-protocol-python/crypto/file.txt"
+file_path = "../file.txt"
 
 print("----------------------------------------")
 print("      Initiliating clients and keys     ")
@@ -17,7 +17,7 @@ client1 = client(id_client1)
 client1.register()
 
 # To send messages to Client 2, Client 1 retrieves the keys on the server
-keys_response = client1.get_key_bundle(client1.id)
+keys_response = client1.get_key_bundle(client2.id)
 to_id = 2
 
 print("----------------------------------------")
@@ -87,6 +87,6 @@ print("----------------------------------------")
 print("              Client 1 to 2             ")
 print("----------------------------------------")
 to_id=2
-client1.send_message(to_id,"Back in first direction after ratchet range. ALLELUIA", isFile=False)
+client1.send_message(to_id,"Back in first direction after ratchet change. ALLELUIA", isFile=False)
 messages = client2.request_messages()
 client2.read_messages(messages)

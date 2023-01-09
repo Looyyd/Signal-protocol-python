@@ -98,7 +98,7 @@ def read_file(file: str):
 
 if __name__ == "__main__":
 
-    plaintext = read_file("file.txt")
+    plaintext = read_file("../file.txt")
     iv = token_bytes(AES_BLOCK_SIZE_BYTES)
     key = token_bytes(aes.AES_KEY_SIZE_BYTES)
 
